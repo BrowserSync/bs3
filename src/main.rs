@@ -1,4 +1,6 @@
-mod write_resp;
+// mod resp;
+mod resp;
+// mod resp2;
 
 use actix_files::Files;
 use actix_web::{middleware, App, HttpServer, HttpResponse};
@@ -7,8 +9,10 @@ use actix_web::http::header::{CONTENT_TYPE, FROM, ACCEPT};
 use actix_web::dev::{Service, ServiceResponse, Body};
 use actix_web::body::ResponseBody;
 use futures::{TryStreamExt, StreamExt};
-use crate::write_resp::Logging;
 use bytes::BytesMut;
+// use crate::resp::Logging;
+// use crate::resp::Logging;
+// use crate::resp2::SayHi;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -18,31 +22,34 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             // Enable the logger.
-            .wrap(middleware::Logger::default())
+            // .wrap(middleware::Logger::default())
+            // .wrap(SayHi)
+            .wrap(resp::Logging)
+            // .wrap(resp2::Logging)
             // .wrap(Logging)
-            .wrap_fn(|req, srv| {
-                let pathname = String::from(req.path());
-                let query = String::from(req.query_string());
-                let fut = srv.call(req);
-                async move {
-                    let mut res: ServiceResponse<_> = fut.await?;
-                    let mut body = res.take_body();
-                    let mut bytes = BytesMut::new();
-
-                    while let Some(item) = body.next().await {
-                        bytes.extend_from_slice(&item.unwrap());
-                    }
-                    let as_utf8 = bytes.to_vec();
-                    let as_string = std::str::from_utf8(&as_utf8).expect("utf8");
-                    println!("File contents ={}", as_string);
-
-
-                    Ok(res.map_body(move |head, body| {
-                        println!("{:?}", bytes);
-                        ResponseBody::Body(bytes)
-                    }))
-                }
-            })
+            // .wrap_fn(|req, srv| {
+            //     let pathname = String::from(req.path());
+            //     let query = String::from(req.query_string());
+            //     let fut = srv.call(req);
+            //     async move {
+            //         let mut res: ServiceResponse<_> = fut.await?;
+            //         let mut body = res.take_body();
+            //         let mut bytes = BytesMut::new();
+            //
+            //         while let Some(item) = body.next().await {
+            //             bytes.extend_from_slice(&item.unwrap());
+            //         }
+            //         let as_utf8 = bytes.to_vec();
+            //         let as_string = std::str::from_utf8(&as_utf8).expect("utf8");
+            //         println!("File contents ={}", as_string);
+            //
+            //
+            //         Ok(res.map_body(move |head, body| {
+            //             println!("{:?}", bytes);
+            //             ResponseBody::Body(bytes)
+            //         }))
+            //     }
+            // })
             // We allow the visitor to see an index of the images at `/images`.
             // .service(Files::new("/images", "static/images/").show_files_listing())
             // Serve a tree of static files at the web root and specify the index file.
