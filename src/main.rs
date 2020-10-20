@@ -1,5 +1,6 @@
 // mod resp;
 mod resp;
+mod client;
 // mod resp2;
 
 use actix_files::Files;
@@ -10,6 +11,8 @@ use actix_web::dev::{Service, ServiceResponse, Body};
 use actix_web::body::ResponseBody;
 use futures::{TryStreamExt, StreamExt};
 use bytes::BytesMut;
+use crate::client::script::Script;
+use crate::resp::{RespGuard, RespModData};
 // use crate::resp::Logging;
 // use crate::resp::Logging;
 // use crate::resp2::SayHi;
@@ -25,7 +28,8 @@ async fn main() -> std::io::Result<()> {
             // .wrap(middleware::Logger::default())
             // .wrap(SayHi)
             // .wrap(resp::Logging)
-            .wrap(resp::Logging)
+            .data(RespModData { guard: Box::new(Script), process: Box::new(Script) })
+            .wrap(resp::RespModMiddleware)
             // .wrap(resp2::Logging)
             // .wrap(Logging)
             // .wrap_fn(|req, srv| {

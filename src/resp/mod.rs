@@ -7,38 +7,42 @@ use actix_service::{Service, Transform};
 use actix_web::body::{BodySize, MessageBody, ResponseBody};
 use actix_web::web::{Bytes, BytesMut};
 use bytes::Buf;
-use actix_web::{dev::ServiceRequest, dev::ServiceResponse, Error};
+use actix_web::{dev::ServiceRequest, dev::ServiceResponse, Error, web, HttpRequest};
 use futures::future::{ok, Ready};
 use futures::{TryStreamExt, StreamExt};
 use actix_web::guard::Guard;
 use actix_web::dev::{RequestHead, ResponseHead};
+use crate::client::script::Script;
 
-trait RespGuard {
-    fn check(&self, req_head: &RequestHead, _res_head: &mut ResponseHead) -> bool {
+pub trait RespMod {
+    fn process_str(&self, resp: String) -> Bytes {
+        Bytes::from(resp)
+    }
+}
+
+pub trait RespGuard {
+    fn check(&self, req_head: &RequestHead) -> bool {
         if req_head.headers.contains_key("referer") {
-            return false
+            return false;
         }
-        return true
+        return true;
     }
 }
 
-struct ScriptTag;
-impl RespGuard for ScriptTag {
-    fn check(&self, req_head: &RequestHead, res_head: &mut ResponseHead) -> bool {
-        if req_head.headers.contains_key("accept") {
-            if req_head.headers.get("accept").expect("guarded").to_str().expect("ed").contains("text/html") {
-                return true
-            } else {
-                println!("not doing {:#?}", res_head)
-            }
-        }
-        return false
+pub struct RespModData {
+    pub guard: Box<dyn RespGuard>,
+    pub process: Box<dyn RespMod>,
+}
+
+impl RespModMiddleware {
+    pub fn new(guard: Box<dyn RespGuard>, process: Box<dyn RespMod>) -> RespModData {
+        return RespModData { guard, process }
     }
 }
 
-pub struct Logging;
+pub struct RespModMiddleware;
 
-impl<S: 'static, B> Transform<S> for Logging
+impl<S: 'static, B> Transform<S> for RespModMiddleware
     where
         S: Service<Request=ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
         B: MessageBody + 'static,
@@ -59,7 +63,7 @@ pub struct LoggingMiddleware<S> {
     service: S,
 }
 
-impl<S, B> Service for LoggingMiddleware<S>
+impl<'a, S, B> Service for LoggingMiddleware<S>
     where
         S: Service<Request=ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
         B: MessageBody,
@@ -104,16 +108,17 @@ impl<S, B> Future for WrapperStream<S, B>
 
         Poll::Ready(res.map(|res| {
             let req = res.request().clone();
-            let head2 = req.head();
             res.map_body(move |head, body| {
-                // println!("{:#?}", head2);
-                // println!("{:#?}", head);
-                let process = (ScriptTag).check(&head2, head);
-
+                let head2 = req.head();
+                let tera = req.app_data::<web::Data<RespModData>>().map(|t| t.get_ref());
+                let process = if let Some(res) = tera {
+                    res.guard.check(head2)
+                } else { false };
                 ResponseBody::Body(BodyLogger {
                     body,
                     body_accum: BytesMut::new(),
                     process,
+                    req,
                 })
             })
         }))
@@ -125,7 +130,8 @@ pub struct BodyLogger<B> {
     #[pin]
     body: ResponseBody<B>,
     body_accum: BytesMut,
-    process: bool
+    process: bool,
+    req: HttpRequest,
 }
 
 #[pin_project::pinned_drop]
@@ -150,28 +156,36 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
     ) -> Poll<Option<Result<Bytes, Error>>> {
         let this = self.project();
         let size1 = this.body.size().clone();
+        let head2 = this.req.head();
+        let tera = this.req.app_data::<web::Data<RespModData>>().map(|t| t.get_ref());
 
         match this.body.poll_next(cx) {
             Poll::Ready(Some(Ok(chunk))) => {
-                // pass-thru if not enabled for current request
                 if !*this.process {
-                    return Poll::Ready(Some(Ok(chunk)))
+                    return Poll::Ready(Some(Ok(chunk)));
                 }
                 this.body_accum.extend_from_slice(&chunk);
                 println!("this.body_accum = {:?}\n\
                           this.body       = {:?}", this.body_accum.size(), size1);
                 if this.body_accum.size() == size1 {
                     let bytes = this.body_accum.to_bytes();
-                    Poll::Ready(Some(Ok(bytes)))
+                    let to_process = std::str::from_utf8(&bytes);
+                    if let Ok(str) = to_process {
+                        let string = String::from(str);
+                        if let Some(res) = tera {
+                            let processed = res.process.process_str(string);
+                            return Poll::Ready(Some(Ok(Bytes::from(processed))))
+                        }
+                        Poll::Ready(Some(Ok(Bytes::from(string))))
+                    } else {
+                        Poll::Ready(Some(Ok(bytes)))
+                    }
                 } else {
                     Poll::Pending
                 }
             }
             Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
             Poll::Ready(None) => {
-                if *this.process {
-                    println!("🥰 done");
-                }
                 Poll::Ready(None)
             }
             Poll::Pending => Poll::Pending,
