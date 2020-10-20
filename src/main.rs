@@ -24,6 +24,7 @@ async fn main() -> std::io::Result<()> {
             // Enable the logger.
             // .wrap(middleware::Logger::default())
             // .wrap(SayHi)
+            // .wrap(resp::Logging)
             .wrap(resp::Logging)
             // .wrap(resp2::Logging)
             // .wrap(Logging)
