@@ -14,9 +14,24 @@ use actix_web::guard::Guard;
 use actix_web::dev::{RequestHead, ResponseHead};
 use crate::client::script::Script;
 
+pub trait RespTransform: RespMod + RespGuard {}
+
+fn indexes(items: &Vec<Box<dyn RespTransform>>, req_head: &RequestHead) -> Vec<usize> {
+    items.iter().enumerate().filter_map(|(index, item)| {
+        if item.check(&req_head) { Some(index) } else { None }
+    }).collect()
+}
+
+fn try_indexes<'a>(items: Option<&'a Vec<Box<dyn RespTransform>>>, req_head: &RequestHead) -> Vec<usize> {
+    if let Some(items) = items {
+        return indexes(items, req_head);
+    }
+    return vec![]
+}
+
 pub trait RespMod {
-    fn process_str(&self, resp: String) -> Bytes {
-        Bytes::from(resp)
+    fn process_str(&self, resp: String) -> String {
+        resp
     }
 }
 
@@ -29,16 +44,16 @@ pub trait RespGuard {
     }
 }
 
-pub struct RespModData {
-    pub guard: Box<dyn RespGuard>,
-    pub process: Box<dyn RespMod>,
-}
+// pub struct RespModData {
+//     pub guard: Box<dyn RespGuard>,
+//     pub process: Box<dyn RespMod>,
+// }
 
-impl RespModMiddleware {
-    pub fn new(guard: Box<dyn RespGuard>, process: Box<dyn RespMod>) -> RespModData {
-        return RespModData { guard, process }
-    }
-}
+// impl RespModMiddleware {
+//     pub fn new(guard: Box<dyn RespGuard>, process: Box<dyn RespMod>) -> RespModData {
+//         return RespModData { guard, process }
+//     }
+// }
 
 pub struct RespModMiddleware;
 
@@ -109,15 +124,15 @@ impl<S, B> Future for WrapperStream<S, B>
         Poll::Ready(res.map(|res| {
             let req = res.request().clone();
             res.map_body(move |head, body| {
-                let head2 = req.head();
-                let tera = req.app_data::<web::Data<RespModData>>().map(|t| t.get_ref());
-                let process = if let Some(res) = tera {
-                    res.guard.check(head2)
-                } else { false };
+                // let head2 = req.head();
+                // let tera = req.app_data::<web::Data<RespModData>>().map(|t| t.get_ref());
+                // let process = if let Some(res) = tera {
+                //     res.guard.check(head2)
+                // } else { false };
                 ResponseBody::Body(BodyLogger {
                     body,
                     body_accum: BytesMut::new(),
-                    process,
+                    process: true,
                     req,
                 })
             })
@@ -156,8 +171,9 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
     ) -> Poll<Option<Result<Bytes, Error>>> {
         let this = self.project();
         let size1 = this.body.size().clone();
-        let head2 = this.req.head();
-        let tera = this.req.app_data::<web::Data<RespModData>>().map(|t| t.get_ref());
+        let head = this.req.head();
+        let transforms = this.req.app_data::<web::Data<Vec<Box<dyn RespTransform>>>>().map(|t| t.get_ref());
+        let indexes = try_indexes(transforms, &head);
 
         match this.body.poll_next(cx) {
             Poll::Ready(Some(Ok(chunk))) => {
@@ -171,10 +187,17 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
                     let bytes = this.body_accum.to_bytes();
                     let to_process = std::str::from_utf8(&bytes);
                     if let Ok(str) = to_process {
-                        let string = String::from(str);
-                        if let Some(res) = tera {
-                            let processed = res.process.process_str(string);
-                            return Poll::Ready(Some(Ok(Bytes::from(processed))))
+                        let mut string = String::from(str);
+                        if !indexes.is_empty() {
+                            println!("should process indexes {:#?}", indexes);
+                            let next = indexes.iter()
+                                .map(|index| {
+                                    let item = transforms.expect("here").get(*index).expect("access by index");
+                                    return item
+                                })
+                                .fold(string.clone(), |output, item| item.process_str(output));
+                            // let processed = res.process.process_str(string);
+                            return Poll::Ready(Some(Ok(Bytes::from(next))))
                         }
                         Poll::Ready(Some(Ok(Bytes::from(string))))
                     } else {

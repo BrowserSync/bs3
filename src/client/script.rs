@@ -1,13 +1,13 @@
 use bytes::Bytes;
 use actix_web::dev::{RequestHead, ResponseHead};
-use crate::resp::{RespMod, RespGuard};
+use crate::resp::{RespMod, RespGuard, RespTransform};
 
 #[derive(Debug, Clone)]
 pub struct Script;
 
 impl RespMod for Script {
-    fn process_str(&self, str: String) -> Bytes {
-        Bytes::from(str.replace("</body>", "<script>console.log('here!')</script></body>"))
+    fn process_str(&self, str: String) -> String {
+        str.replace("</body>", "<script>console.log('here!')</script></body>")
     }
 }
 
@@ -27,3 +27,5 @@ impl RespGuard for Script {
         return false;
     }
 }
+
+impl RespTransform for Script {}

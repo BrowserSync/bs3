@@ -12,7 +12,7 @@ use actix_web::body::ResponseBody;
 use futures::{TryStreamExt, StreamExt};
 use bytes::BytesMut;
 use crate::client::script::Script;
-use crate::resp::{RespGuard, RespModData};
+use crate::resp::{RespGuard, RespTransform};
 // use crate::resp::Logging;
 // use crate::resp::Logging;
 // use crate::resp2::SayHi;
@@ -23,12 +23,13 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
 
     HttpServer::new(|| {
+        let mods: Vec<Box<dyn RespTransform>> = vec![Box::new(Script)];
         App::new()
             // Enable the logger.
             // .wrap(middleware::Logger::default())
             // .wrap(SayHi)
             // .wrap(resp::Logging)
-            .data(RespModData { guard: Box::new(Script), process: Box::new(Script) })
+            .data(mods)
             .wrap(resp::RespModMiddleware)
             // .wrap(resp2::Logging)
             // .wrap(Logging)
