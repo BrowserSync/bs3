@@ -1,3 +1,4 @@
+use log::debug;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -6,37 +7,17 @@ use std::task::{Context, Poll};
 use actix_service::{Service, Transform};
 use actix_web::body::{BodySize, MessageBody, ResponseBody};
 use actix_web::web::{Bytes, BytesMut};
+use actix_web::{dev::ServiceRequest, dev::ServiceResponse, web, Error, HttpRequest};
 use bytes::Buf;
-use actix_web::{dev::ServiceRequest, dev::ServiceResponse, Error, web, HttpRequest};
 use futures::future::{ok, Ready};
-use futures::{TryStreamExt, StreamExt};
-use actix_web::guard::Guard;
-use actix_web::dev::{RequestHead, ResponseHead};
-use crate::client::script::Script;
 
-pub trait RespTransform: RespMod + RespGuard {}
-
-fn indexes(items: &Vec<Box<dyn RespTransform>>, req_head: &RequestHead) -> Vec<usize> {
-    items.iter().enumerate().filter_map(|(index, item)| {
-        if item.check(&req_head) { Some(index) } else { None }
-    }).collect()
-}
-
-fn try_indexes<'a>(items: Option<&'a Vec<Box<dyn RespTransform>>>, req_head: &RequestHead) -> Vec<usize> {
-    if let Some(items) = items {
-        return indexes(items, req_head);
-    }
-    return vec![]
-}
+use actix_web::dev::RequestHead;
 
 pub trait RespMod {
     fn process_str(&self, resp: String) -> String {
         resp
     }
-}
-
-pub trait RespGuard {
-    fn check(&self, req_head: &RequestHead) -> bool {
+    fn guard(&self, req_head: &RequestHead) -> bool {
         if req_head.headers.contains_key("referer") {
             return false;
         }
@@ -44,23 +25,44 @@ pub trait RespGuard {
     }
 }
 
-// pub struct RespModData {
-//     pub guard: Box<dyn RespGuard>,
-//     pub process: Box<dyn RespMod>,
-// }
+pub trait RespModDataTrait {
+    fn indexes(&self, req_head: &RequestHead) -> Vec<usize>;
+    fn process_str(&self, input: String, indexes: &Vec<usize>) -> String;
+}
 
-// impl RespModMiddleware {
-//     pub fn new(guard: Box<dyn RespGuard>, process: Box<dyn RespMod>) -> RespModData {
-//         return RespModData { guard, process }
-//     }
-// }
+pub struct RespModData {
+    pub items: Vec<Box<dyn RespMod>>,
+}
+
+impl RespModDataTrait for RespModData {
+    fn indexes(&self, req_head: &RequestHead) -> Vec<usize> {
+        self.items
+            .iter()
+            .enumerate()
+            .filter_map(|(index, item)| {
+                if item.guard(&req_head) {
+                    Some(index)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    fn process_str(&self, input: String, indexes: &Vec<usize>) -> String {
+        indexes.iter().fold(input, |acc, index| {
+            let item = self.items.get(*index).expect("guarded");
+            return item.process_str(acc);
+        })
+    }
+}
 
 pub struct RespModMiddleware;
 
 impl<S: 'static, B> Transform<S> for RespModMiddleware
-    where
-        S: Service<Request=ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
-        B: MessageBody + 'static,
+where
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    B: MessageBody + 'static,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<BodyLogger<B>>;
@@ -79,9 +81,9 @@ pub struct LoggingMiddleware<S> {
 }
 
 impl<'a, S, B> Service for LoggingMiddleware<S>
-    where
-        S: Service<Request=ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
-        B: MessageBody,
+where
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    B: MessageBody,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<BodyLogger<B>>;
@@ -102,19 +104,19 @@ impl<'a, S, B> Service for LoggingMiddleware<S>
 
 #[pin_project::pin_project]
 pub struct WrapperStream<S, B>
-    where
-        B: MessageBody,
-        S: Service,
+where
+    B: MessageBody,
+    S: Service,
 {
     #[pin]
     fut: S::Future,
-    _t: PhantomData<(B, )>,
+    _t: PhantomData<(B,)>,
 }
 
 impl<S, B> Future for WrapperStream<S, B>
-    where
-        B: MessageBody,
-        S: Service<Request=ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
+where
+    B: MessageBody,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     type Output = Result<ServiceResponse<BodyLogger<B>>, Error>;
 
@@ -123,16 +125,19 @@ impl<S, B> Future for WrapperStream<S, B>
 
         Poll::Ready(res.map(|res| {
             let req = res.request().clone();
-            res.map_body(move |head, body| {
-                // let head2 = req.head();
-                // let tera = req.app_data::<web::Data<RespModData>>().map(|t| t.get_ref());
-                // let process = if let Some(res) = tera {
-                //     res.guard.check(head2)
-                // } else { false };
+            res.map_body(move |_head, body| {
+                let head = req.head();
+                let transforms = req
+                    .app_data::<web::Data<RespModData>>()
+                    .map(|t| t.get_ref());
+                let indexes: Vec<usize> = transforms
+                    .map(|trans| trans.indexes(&head))
+                    .unwrap_or(vec![]);
                 ResponseBody::Body(BodyLogger {
                     body,
                     body_accum: BytesMut::new(),
-                    process: true,
+                    process: !indexes.is_empty(),
+                    indexes,
                     req,
                 })
             })
@@ -146,6 +151,7 @@ pub struct BodyLogger<B> {
     body: ResponseBody<B>,
     body_accum: BytesMut,
     process: bool,
+    indexes: Vec<usize>,
     req: HttpRequest,
 }
 
@@ -165,15 +171,13 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
         }
     }
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         let this = self.project();
         let size1 = this.body.size().clone();
-        let head = this.req.head();
-        let transforms = this.req.app_data::<web::Data<Vec<Box<dyn RespTransform>>>>().map(|t| t.get_ref());
-        let indexes = try_indexes(transforms, &head);
+        let transforms = this
+            .req
+            .app_data::<web::Data<RespModData>>()
+            .map(|t| t.get_ref());
 
         match this.body.poll_next(cx) {
             Poll::Ready(Some(Ok(chunk))) => {
@@ -181,37 +185,41 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
                     return Poll::Ready(Some(Ok(chunk)));
                 }
                 this.body_accum.extend_from_slice(&chunk);
-                println!("this.body_accum = {:?}\n\
-                          this.body       = {:?}", this.body_accum.size(), size1);
+                debug!(
+                    "this.body_accum = {:?}, this.body = {:?}",
+                    this.body_accum.size(),
+                    size1
+                );
                 if this.body_accum.size() == size1 {
-                    let bytes = this.body_accum.to_bytes();
-                    let to_process = std::str::from_utf8(&bytes);
-                    if let Ok(str) = to_process {
-                        let mut string = String::from(str);
-                        if !indexes.is_empty() {
-                            println!("should process indexes {:#?}", indexes);
-                            let next = indexes.iter()
-                                .map(|index| {
-                                    let item = transforms.expect("here").get(*index).expect("access by index");
-                                    return item
-                                })
-                                .fold(string.clone(), |output, item| item.process_str(output));
-                            // let processed = res.process.process_str(string);
-                            return Poll::Ready(Some(Ok(Bytes::from(next))))
-                        }
-                        Poll::Ready(Some(Ok(Bytes::from(string))))
-                    } else {
-                        Poll::Ready(Some(Ok(bytes)))
-                    }
+                    process(this.body_accum.to_bytes(), transforms, &this.indexes)
                 } else {
                     Poll::Pending
                 }
             }
             Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
-            Poll::Ready(None) => {
-                Poll::Ready(None)
-            }
+            Poll::Ready(None) => Poll::Ready(None),
             Poll::Pending => Poll::Pending,
         }
+    }
+}
+
+fn process(
+    bytes: Bytes,
+    transforms: Option<&RespModData>,
+    indexes: &Vec<usize>,
+) -> Poll<Option<Result<Bytes, Error>>> {
+    let to_process = std::str::from_utf8(&bytes);
+    if let Ok(str) = to_process {
+        let string = String::from(str);
+        if !indexes.is_empty() {
+            log::debug!("processing indexes {:?}", indexes);
+            let next = transforms
+                .map(|trans| trans.process_str(string.clone(), indexes))
+                .unwrap_or(String::new());
+            return Poll::Ready(Some(Ok(Bytes::from(next))));
+        }
+        Poll::Ready(Some(Ok(Bytes::from(string))))
+    } else {
+        Poll::Ready(Some(Ok(bytes)))
     }
 }
