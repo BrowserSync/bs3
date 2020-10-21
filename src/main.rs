@@ -6,7 +6,8 @@ mod resp;
 use actix_files::Files;
 use actix_web::{App, HttpServer};
 
-use crate::client::script::{Script, Script2};
+use crate::client::css::Css;
+use crate::client::script::Script;
 use crate::resp::RespModData;
 // use crate::resp::Logging;
 // use crate::resp::Logging;
@@ -20,7 +21,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(|| {
         let mods = RespModData {
-            items: vec![Box::new(Script), Box::new(Script2)],
+            items: vec![Box::new(Script), Box::new(Css)],
         };
         App::new()
             // Enable the logger.

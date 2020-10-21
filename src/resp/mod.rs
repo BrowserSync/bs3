@@ -11,13 +11,14 @@ use actix_web::{dev::ServiceRequest, dev::ServiceResponse, web, Error, HttpReque
 use bytes::Buf;
 use futures::future::{ok, Ready};
 
-use actix_web::dev::RequestHead;
+use actix_web::dev::{RequestHead, ResponseHead};
 
 pub trait RespMod {
+    fn name(&self) -> String;
     fn process_str(&self, resp: String) -> String {
         resp
     }
-    fn guard(&self, req_head: &RequestHead) -> bool {
+    fn guard(&self, req_head: &RequestHead, _res_head: &ResponseHead) -> bool {
         if req_head.headers.contains_key("referer") {
             return false;
         }
@@ -26,7 +27,7 @@ pub trait RespMod {
 }
 
 pub trait RespModDataTrait {
-    fn indexes(&self, req_head: &RequestHead) -> Vec<usize>;
+    fn indexes(&self, req_head: &RequestHead, res_head: &ResponseHead) -> Vec<usize>;
     fn process_str(&self, input: String, indexes: &Vec<usize>) -> String;
 }
 
@@ -35,12 +36,12 @@ pub struct RespModData {
 }
 
 impl RespModDataTrait for RespModData {
-    fn indexes(&self, req_head: &RequestHead) -> Vec<usize> {
+    fn indexes(&self, req_head: &RequestHead, res_head: &ResponseHead) -> Vec<usize> {
         self.items
             .iter()
             .enumerate()
             .filter_map(|(index, item)| {
-                if item.guard(&req_head) {
+                if item.guard(&req_head, &res_head) {
                     Some(index)
                 } else {
                     None
@@ -52,6 +53,7 @@ impl RespModDataTrait for RespModData {
     fn process_str(&self, input: String, indexes: &Vec<usize>) -> String {
         indexes.iter().fold(input, |acc, index| {
             let item = self.items.get(*index).expect("guarded");
+            log::debug!("processing [{}] {}", index, item.name());
             return item.process_str(acc);
         })
     }
@@ -131,7 +133,7 @@ where
                     .app_data::<web::Data<RespModData>>()
                     .map(|t| t.get_ref());
                 let indexes: Vec<usize> = transforms
-                    .map(|trans| trans.indexes(&head))
+                    .map(|trans| trans.indexes(&head, &_head))
                     .unwrap_or(vec![]);
                 ResponseBody::Body(BodyLogger {
                     body,
@@ -173,6 +175,8 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         let this = self.project();
+        let req: &mut HttpRequest = this.req;
+        let uri = req.uri().to_string();
         let size1 = this.body.size().clone();
         let transforms = this
             .req
@@ -191,7 +195,7 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
                     size1
                 );
                 if this.body_accum.size() == size1 {
-                    process(this.body_accum.to_bytes(), transforms, &this.indexes)
+                    process(this.body_accum.to_bytes(), uri, transforms, &this.indexes)
                 } else {
                     Poll::Pending
                 }
@@ -205,6 +209,7 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
 
 fn process(
     bytes: Bytes,
+    uri: String,
     transforms: Option<&RespModData>,
     indexes: &Vec<usize>,
 ) -> Poll<Option<Result<Bytes, Error>>> {
@@ -212,7 +217,7 @@ fn process(
     if let Ok(str) = to_process {
         let string = String::from(str);
         if !indexes.is_empty() {
-            log::debug!("processing indexes {:?}", indexes);
+            log::debug!("processing indexes {:?} for `{}`", indexes, uri);
             let next = transforms
                 .map(|trans| trans.process_str(string.clone(), indexes))
                 .unwrap_or(String::new());
