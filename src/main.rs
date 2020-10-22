@@ -1,14 +1,18 @@
 // mod resp;
 mod client;
 mod resp;
+mod ws;
 // mod resp2;
 
 use actix_files::Files;
-use actix_web::{App, HttpServer};
+use actix_web::{App, HttpServer, web};
 
 use crate::client::css::Css;
 use crate::client::script::Script;
 use crate::resp::RespModData;
+use crate::ws::chat_route;
+use crate::ws::server::ChatServer;
+use actix::Actor;
 // use crate::resp::Logging;
 // use crate::resp::Logging;
 // use crate::resp2::SayHi;
@@ -19,7 +23,8 @@ async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "bs3=debug");
     env_logger::init();
 
-    HttpServer::new(|| {
+    HttpServer::new(move || {
+        let ws_server = ChatServer::default().start();
         let mods = RespModData {
             items: vec![Box::new(Script), Box::new(Css)],
         };
@@ -28,8 +33,11 @@ async fn main() -> std::io::Result<()> {
             // .wrap(middleware::Logger::default())
             // .wrap(SayHi)
             // .wrap(resp::Logging)
-            .data(mods)
-            .wrap(resp::RespModMiddleware)
+            // .service(web::resource("/ws/").to(chat_route))
+            .data(ws_server.clone())
+            // .data(mods)
+            .service(web::resource("/ws/").to(chat_route))
+            // .wrap(resp::RespModMiddleware)
             // .wrap(resp2::Logging)
             // .wrap(Logging)
             // .wrap_fn(|req, srv| {
