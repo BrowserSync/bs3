@@ -119,13 +119,17 @@ impl Handler<Connect> for ChatServer {
 
         // register session with random id
         let id = self.rng.gen::<usize>();
+        println!("new id = ({})", id);
         self.sessions.insert(id, msg.addr);
 
+        println!("rooms before={:?}", self.rooms);
         // auto join session to Main room
         self.rooms
             .entry("Main".to_owned())
             .or_insert_with(HashSet::new)
             .insert(id);
+
+        println!("rooms after={:?}", self.rooms);
 
         // send id back
         id

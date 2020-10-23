@@ -5,7 +5,7 @@ mod ws;
 // mod resp2;
 
 use actix_files::Files;
-use actix_web::{App, HttpServer, web};
+use actix_web::{App, HttpServer, web, HttpResponse};
 
 use crate::client::css::Css;
 use crate::client::script::Script;
@@ -13,9 +13,35 @@ use crate::resp::RespModData;
 use crate::ws::chat_route;
 use crate::ws::server::ChatServer;
 use actix::Actor;
+use actix_web::http::StatusCode;
+use actix_web::body::ResponseBody::Body;
+use bytes::Bytes;
+use futures::StreamExt;
 // use crate::resp::Logging;
 // use crate::resp::Logging;
 // use crate::resp2::SayHi;
+
+async fn chunked_response() -> HttpResponse {
+    let bytes = vec![
+        "<!doctype html>
+        <html lang='en'>
+        <head>",
+        "<meta charset='UTF-8'>
+        <meta name='viewport' content='width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0'>
+        <meta http-equiv='X-UA-Compatible' content='ie=edge'>
+        <title>Document</title>
+        </head>
+        <body>
+          <h1>Chunked</h1>
+        </body>
+        </html>"
+    ];
+    let stream = futures::stream::iter(bytes)
+        .map(|str| Ok(Bytes::from(str)) as Result<Bytes, ()>);
+    HttpResponse::build(StatusCode::OK)
+        .content_type("text/html; charset=utf-8")
+        .streaming(stream)
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -23,10 +49,14 @@ async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "bs3=debug");
     env_logger::init();
 
+    let ws_server = ChatServer::default().start();
+
     HttpServer::new(move || {
-        let ws_server = ChatServer::default().start();
         let mods = RespModData {
-            items: vec![Box::new(Script), Box::new(Css)],
+            items: vec![
+                Box::new(Script),
+                Box::new(Css)
+            ],
         };
         App::new()
             // Enable the logger.
@@ -35,9 +65,10 @@ async fn main() -> std::io::Result<()> {
             // .wrap(resp::Logging)
             // .service(web::resource("/ws/").to(chat_route))
             .data(ws_server.clone())
-            // .data(mods)
-            .service(web::resource("/ws/").to(chat_route))
-            // .wrap(resp::RespModMiddleware)
+            .data(mods)
+            .wrap(resp::RespModMiddleware)
+            .service(web::resource("/__bs3/ws/").to(chat_route))
+            .service(web::resource("/chunked").to(chunked_response))
             // .wrap(resp2::Logging)
             // .wrap(Logging)
             // .wrap_fn(|req, srv| {

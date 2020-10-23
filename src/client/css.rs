@@ -5,20 +5,18 @@ use actix_web::dev::{RequestHead, ResponseHead};
 pub struct Css;
 
 impl RespMod for Css {
-    fn process_str(&self, str: String) -> String {
-        let mut output = String::from(str);
-        output.push_str("/* hello */");
-        output
-    }
-    fn guard(&self, _req_head: &RequestHead, res_head: &ResponseHead) -> bool {
-        res_head
-            .headers
-            .get("accept")
-            .and_then(|hv| hv.to_str().ok())
-            .filter(|str| str.contains("text/css"))
-            .is_some()
-    }
     fn name(&self) -> String {
-        String::from("CSS comment")
+        String::from("Chunked test")
+    }
+    fn process_str(&self, str: String) -> String {
+        str.replace("Chunked", "[Chunked]")
+    }
+    fn guard(&self, req_head: &RequestHead, res_head: &ResponseHead) -> bool {
+        req_head.uri
+            .clone()
+            .into_parts()
+            .path_and_query
+            .map(|pq| pq.as_str().starts_with("/chunked"))
+            .unwrap_or(false)
     }
 }

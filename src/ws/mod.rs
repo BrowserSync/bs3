@@ -1,8 +1,7 @@
 use std::time::{Duration, Instant};
 
 use actix::*;
-use actix_files as fs;
-use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 
 pub mod server;
@@ -107,7 +106,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
             Ok(msg) => msg,
         };
 
-        println!("WEBSOCKET MESSAGE: {:?}", msg);
         match msg {
             ws::Message::Ping(msg) => {
                 self.hb = Instant::now();
@@ -117,6 +115,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                 self.hb = Instant::now();
             }
             ws::Message::Text(text) => {
+                println!("WEBSOCKET MESSAGE: {:?}", text);
                 let m = text.trim();
                 // we check for /sss type of messages
                 if m.starts_with('/') {
