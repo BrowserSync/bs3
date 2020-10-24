@@ -11,7 +11,7 @@ use crate::client::css::Css;
 use crate::client::script::Script;
 use crate::resp::RespModData;
 use crate::ws::chat_route;
-use crate::ws::server::ChatServer;
+use crate::ws::server::{ChatServer, Message, Init, Other};
 use actix::Actor;
 use actix_web::http::StatusCode;
 
@@ -49,6 +49,11 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
 
     let ws_server = ChatServer::default().start();
+    let ws_server2 = ChatServer::default().start();
+
+    ws_server.do_send(Other(ws_server2.clone()));
+    ws_server.do_send(Init);
+    ws_server.do_send(Init);
 
     HttpServer::new(move || {
         let mods = RespModData {

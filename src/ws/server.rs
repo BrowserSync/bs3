@@ -5,11 +5,23 @@
 use actix::prelude::*;
 use rand::{self, rngs::ThreadRng, Rng};
 use std::collections::{HashMap, HashSet};
+use std::thread;
+use std::time::Duration;
 
 /// Chat server sends this messages to session
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct Message(pub String);
+
+/// Chat server gets this init message
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct Init;
+
+/// Chat server gets this init message
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct Other(pub Addr<ChatServer>);
 
 /// Message for chat server communications
 
@@ -62,6 +74,7 @@ pub struct ChatServer {
     sessions: HashMap<usize, Recipient<Message>>,
     rooms: HashMap<String, HashSet<usize>>,
     rng: ThreadRng,
+    others: Vec<Addr<ChatServer>>
 }
 
 impl Default for ChatServer {
@@ -74,6 +87,7 @@ impl Default for ChatServer {
             sessions: HashMap::new(),
             rooms,
             rng: rand::thread_rng(),
+            others: Vec::new(),
         }
     }
 }
@@ -137,6 +151,26 @@ impl Handler<Connect> for ChatServer {
 }
 
 /// Handler for Disconnect message.
+impl Handler<Init> for ChatServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: Init, _: &mut Context<Self>) -> Self::Result {
+        thread::sleep(Duration::from_secs(2));
+        println!("started, has others= {:?}", self.others.len());
+    }
+}
+
+/// Handler for accepting an address.
+impl Handler<Other> for ChatServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: Other, cx: &mut Context<Self>) -> Self::Result {
+        let other_addr = msg.0;
+        println!("others={:?}", self.others.len());
+        self.others.push(other_addr);
+    }
+}
+
 impl Handler<Disconnect> for ChatServer {
     type Result = ();
 
