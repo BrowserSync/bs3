@@ -144,7 +144,7 @@ where
     }
 }
 
-#[pin_project::pin_project(PinnedDrop)]
+#[pin_project::pin_project]
 pub struct BodyLogger<B> {
     #[pin]
     body: ResponseBody<B>,
@@ -153,13 +153,6 @@ pub struct BodyLogger<B> {
     indexes: Vec<usize>,
     req: HttpRequest,
     eof: bool,
-}
-
-#[pin_project::pinned_drop]
-impl<B> PinnedDrop for BodyLogger<B> {
-    fn drop(self: Pin<&mut Self>) {
-        // println!("response body: {:?}", self.body_accum);
-    }
 }
 
 impl<B: MessageBody> MessageBody for BodyLogger<B> {
@@ -174,64 +167,67 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         log::debug!("poll");
-        let this = self.project();
+        let mut this = self.project();
         let req: &mut HttpRequest = this.req;
         let original_body_size = this.body.size().clone();
         let is_stream = original_body_size == BodySize::Stream;
 
-        match this.body.poll_next(cx) {
-            Poll::Ready(Some(Ok(chunk))) => {
-                log::debug!("chunk size = {:?}", chunk.size());
-                if !*this.process {
-                    log::debug!("passing through");
-                    return Poll::Ready(Some(Ok(chunk)));
-                }
-                this.body_accum.extend_from_slice(&chunk);
-                debug!(
-                    "this.body_accum = {:?}, this.body = {:?}",
-                    this.body_accum.size(),
-                    original_body_size
-                );
-                if this.body_accum.size() == original_body_size {
-                    let uri = req.uri().to_string();
-                    let transforms = this
-                        .req
-                        .app_data::<web::Data<RespModData>>()
-                        .map(|t| t.get_ref());
-                    process(this.body_accum.to_bytes(), uri, transforms, &this.indexes)
-                } else {
-                    if is_stream {
-                        log::debug!("empty");
-                        Poll::Ready(Some(Ok(Bytes::from("<!--pad-->"))))
+        loop {
+            let s = this.body.as_mut();
+            return match s.poll_next(cx) {
+                Poll::Ready(Some(Ok(chunk))) => {
+                    log::debug!("chunk size = {:?}", chunk.size());
+                    if !*this.process {
+                        log::debug!("passing through");
+                        return Poll::Ready(Some(Ok(chunk)));
+                    }
+                    this.body_accum.extend_from_slice(&chunk);
+                    log::debug!(
+                        "this.body_accum = {:?}, this.body = {:?}",
+                        this.body_accum.size(),
+                        original_body_size
+                    );
+                    if this.body_accum.size() == original_body_size {
+                        let uri = req.uri().to_string();
+                        let transforms = this
+                            .req
+                            .app_data::<web::Data<RespModData>>()
+                            .map(|t| t.get_ref());
+                        process(this.body_accum.to_bytes(), uri, transforms, &this.indexes)
                     } else {
-                        Poll::Pending
+                        if is_stream {
+                            log::debug!("empty");
+                            continue
+                        } else {
+                            Poll::Pending
+                        }
                     }
                 }
+                Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
+                Poll::Ready(None) => {
+                    if *this.eof {
+                        log::debug!("early exit");
+                        return Poll::Ready(None);
+                    }
+                    log::debug!("Poll::Ready");
+                    if is_stream {
+                        log::debug!("original body was a stream, total bytes: {:?}", this.body_accum.size());
+                        *this.eof = true;
+                        let uri = req.uri().to_string();
+                        let transforms = this
+                            .req
+                            .app_data::<web::Data<RespModData>>()
+                            .map(|t| t.get_ref());
+                        process(this.body_accum.to_bytes(), uri, transforms, &this.indexes)
+                    } else {
+                        Poll::Ready(None)
+                    }
+                },
+                Poll::Pending => {
+                    log::debug!("Poll::Pending");
+                    Poll::Pending
+                },
             }
-            Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
-            Poll::Ready(None) => {
-                if *this.eof {
-                    log::debug!("early exit");
-                    return Poll::Ready(None);
-                }
-                log::debug!("Poll::Ready");
-                if is_stream {
-                    log::debug!("original body was a stream, {:?}", this.body_accum);
-                    *this.eof = true;
-                    let uri = req.uri().to_string();
-                    let transforms = this
-                        .req
-                        .app_data::<web::Data<RespModData>>()
-                        .map(|t| t.get_ref());
-                    process(this.body_accum.to_bytes(), uri, transforms, &this.indexes)
-                } else {
-                    Poll::Ready(None)
-                }
-            },
-            Poll::Pending => {
-                log::debug!("Poll::Pending");
-                Poll::Pending
-            },
         }
     }
 }
