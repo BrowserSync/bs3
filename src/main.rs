@@ -2,21 +2,27 @@
 mod client;
 mod resp;
 mod ws;
+mod fs;
 // mod resp2;
 
-use actix_files::Files;
-use actix_web::{web, App, HttpResponse, HttpServer};
+use actix_files::{Files, NamedFile};
+use actix_web::{web, App, HttpResponse, HttpServer, HttpRequest, HttpMessage};
 
 use crate::client::css::Css;
 use crate::client::script::Script;
 use crate::resp::RespModData;
 use crate::ws::chat_route;
-use crate::ws::server::{ChatServer, Message, Init, Other};
+use crate::ws::server::{ChatServer, Message};
 use actix::Actor;
 use actix_web::http::StatusCode;
 
 use bytes::Bytes;
 use futures::StreamExt;
+use crate::fs::{FsWatcher, AddWatcher};
+use actix_web::dev::ServiceResponse;
+use futures::future::{ok, Either};
+use std::path::PathBuf;
+use actix_service::{Service, IntoServiceFactory, ServiceFactory};
 // use crate::resp::Logging;
 // use crate::resp::Logging;
 // use crate::resp2::SayHi;
@@ -44,16 +50,14 @@ async fn chunked_response() -> HttpResponse {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "actix_web=info");
-    std::env::set_var("RUST_LOG", "bs3=debug");
+    // std::env::set_var("RUST_LOG", "actix_web=info,bs3=debug,trace");
+    // std::env::set_var("RUST_LOG", "bs3=debug,trace");
     env_logger::init();
 
     let ws_server = ChatServer::default().start();
-    let ws_server2 = ChatServer::default().start();
+    let fs_server = FsWatcher::default().start();
 
-    ws_server.do_send(Other(ws_server2.clone()));
-    ws_server.do_send(Init);
-    ws_server.do_send(Init);
+    fs_server.do_send(AddWatcher { pattern: std::path::PathBuf::from("./fixtures") });
 
     HttpServer::new(move || {
         let mods = RespModData {
@@ -102,6 +106,41 @@ async fn main() -> std::io::Result<()> {
             // resolved in the order they are defined. If this would be placed before the `/images`
             // path then the service for the static images would never be reached.
             .service(Files::new("/", "./fixtures").index_file("index.html"))
+            // .default_service(web::get().to(|req: HttpRequest| {
+            //     let dir = PathBuf::from("/Users/shakyshane/sites/bs3/fixtures");
+            //     // let real_path: PathBuf = match req.match_info().path().parse() {
+            //     //     Ok(item) => item,
+            //     //     Err(e) => todo!(),
+            //     // };
+            //     let real_path = PathBuf::from("styles.css");
+            //     println!("real_path={:?}", real_path);
+            //     println!("dir={:?}", dir);
+            //     // full file path
+            //     let path = match std::path::PathBuf::from(dir).join(&real_path).canonicalize() {
+            //         Ok(path) => path,
+            //         Err(e) => {
+            //             eprintln!("{:?}", e);
+            //             todo!()
+            //         }
+            //     };
+            //     println!("joined={:?}", path);
+            //     log::debug!("path={}", path.display());
+            //     match NamedFile::open(path) {
+            //         Ok(mut named_file) => {
+            //             match named_file.into_response(&req) {
+            //                 Ok(item) => {
+            //                     item
+            //                     // todo!();
+            //                 }
+            //                 Err(e) => {
+            //                     // Either::Left(ok(ServiceResponse::from_err(e, req)))
+            //                     todo!();
+            //                 },
+            //             }
+            //         }
+            //         Err(e) => todo!(),
+            //     }
+            // }))
     })
     .bind("127.0.0.1:8080")?
     .run()

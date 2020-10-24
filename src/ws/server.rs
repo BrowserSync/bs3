@@ -13,18 +13,6 @@ use std::time::Duration;
 #[rtype(result = "()")]
 pub struct Message(pub String);
 
-/// Chat server gets this init message
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct Init;
-
-/// Chat server gets this init message
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct Other(pub Addr<ChatServer>);
-
-/// Message for chat server communications
-
 /// New chat session is created
 #[derive(Message)]
 #[rtype(usize)]
@@ -117,6 +105,10 @@ impl Actor for ChatServer {
     /// We are going to use simple Context, we just need ability to communicate
     /// with other actors.
     type Context = Context<Self>;
+
+    fn stopped(&mut self, ctx: &mut Self::Context) {
+        log::debug!("stopped!");
+    }
 }
 
 /// Handler for Connect message.
@@ -147,27 +139,6 @@ impl Handler<Connect> for ChatServer {
 
         // send id back
         id
-    }
-}
-
-/// Handler for Disconnect message.
-impl Handler<Init> for ChatServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: Init, _: &mut Context<Self>) -> Self::Result {
-        thread::sleep(Duration::from_secs(2));
-        println!("started, has others= {:?}", self.others.len());
-    }
-}
-
-/// Handler for accepting an address.
-impl Handler<Other> for ChatServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: Other, cx: &mut Context<Self>) -> Self::Result {
-        let other_addr = msg.0;
-        println!("others={:?}", self.others.len());
-        self.others.push(other_addr);
     }
 }
 
