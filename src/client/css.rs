@@ -11,8 +11,9 @@ impl RespMod for Css {
     fn process_str(&self, str: String) -> String {
         str.replace("Chunked", "[Chunked]")
     }
-    fn guard(&self, req_head: &RequestHead, res_head: &ResponseHead) -> bool {
-        req_head.uri
+    fn guard(&self, req_head: &RequestHead, _res_head: &ResponseHead) -> bool {
+        req_head
+            .uri
             .clone()
             .into_parts()
             .path_and_query

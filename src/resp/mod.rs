@@ -1,4 +1,3 @@
-use log::debug;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -166,11 +165,17 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
     }
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
-        log::debug!("poll");
         let mut this = self.project();
         let req: &mut HttpRequest = this.req;
+
+        if is_ws_req(&req.head()) {
+            return this.body.poll_next(cx);
+        }
+
         let original_body_size = this.body.size().clone();
         let is_stream = original_body_size == BodySize::Stream;
+
+        log::debug!("poll");
 
         loop {
             let s = this.body.as_mut();
@@ -197,7 +202,7 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
                     } else {
                         if is_stream {
                             log::debug!("empty");
-                            continue
+                            continue;
                         } else {
                             Poll::Pending
                         }
@@ -211,7 +216,10 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
                     }
                     log::debug!("Poll::Ready");
                     if is_stream {
-                        log::debug!("original body was a stream, total bytes: {:?}", this.body_accum.size());
+                        log::debug!(
+                            "original body was a stream, total bytes: {:?}",
+                            this.body_accum.size()
+                        );
                         *this.eof = true;
                         let uri = req.uri().to_string();
                         let transforms = this
@@ -222,12 +230,12 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
                     } else {
                         Poll::Ready(None)
                     }
-                },
+                }
                 Poll::Pending => {
-                    log::debug!("Poll::Pending");
+                    log::debug!("Poll::Pending {:?}", req.uri());
                     Poll::Pending
-                },
-            }
+                }
+            };
         }
     }
 }
@@ -252,4 +260,13 @@ fn process(
     } else {
         Poll::Ready(Some(Ok(bytes)))
     }
+}
+
+fn is_ws_req(req: &RequestHead) -> bool {
+    req.uri
+        .clone()
+        .into_parts()
+        .path_and_query
+        .map(|pq| pq.as_str().starts_with("/__bs3/ws"))
+        .unwrap_or(false)
 }

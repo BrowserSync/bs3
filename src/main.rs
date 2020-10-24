@@ -5,7 +5,7 @@ mod ws;
 // mod resp2;
 
 use actix_files::Files;
-use actix_web::{App, HttpServer, web, HttpResponse};
+use actix_web::{web, App, HttpResponse, HttpServer};
 
 use crate::client::css::Css;
 use crate::client::script::Script;
@@ -14,7 +14,7 @@ use crate::ws::chat_route;
 use crate::ws::server::ChatServer;
 use actix::Actor;
 use actix_web::http::StatusCode;
-use actix_web::body::ResponseBody::Body;
+
 use bytes::Bytes;
 use futures::StreamExt;
 // use crate::resp::Logging;
@@ -36,8 +36,7 @@ async fn chunked_response() -> HttpResponse {
         </body>
         </html>"
     ];
-    let stream = futures::stream::iter(bytes)
-        .map(|str| Ok(Bytes::from(str)) as Result<Bytes, ()>);
+    let stream = futures::stream::iter(bytes).map(|str| Ok(Bytes::from(str)) as Result<Bytes, ()>);
     HttpResponse::build(StatusCode::OK)
         .content_type("text/html; charset=utf-8")
         .streaming(stream)
@@ -53,10 +52,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         let mods = RespModData {
-            items: vec![
-                Box::new(Script),
-                Box::new(Css)
-            ],
+            items: vec![Box::new(Script), Box::new(Css)],
         };
         App::new()
             // Enable the logger.
