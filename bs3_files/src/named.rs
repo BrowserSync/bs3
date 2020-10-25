@@ -11,8 +11,7 @@ use actix_web::{
     dev::{BodyEncoding, SizedStream},
     http::{
         header::{
-            self, Charset, ContentDisposition, DispositionParam, DispositionType,
-            ExtendedValue,
+            self, Charset, ContentDisposition, DispositionParam, DispositionType, ExtendedValue,
         },
         ContentEncoding, StatusCode,
     },
@@ -99,8 +98,7 @@ impl NamedFile {
                 _ => DispositionType::Attachment,
             };
 
-            let mut parameters =
-                vec![DispositionParam::Filename(String::from(filename.as_ref()))];
+            let mut parameters = vec![DispositionParam::Filename(String::from(filename.as_ref()))];
 
             if !filename.is_ascii() {
                 parameters.push(DispositionParam::FilenameExt(ExtendedValue {
@@ -402,12 +400,7 @@ impl NamedFile {
                     resp.encoding(ContentEncoding::Identity);
                     resp.header(
                         header::CONTENT_RANGE,
-                        format!(
-                            "bytes {}-{}/{}",
-                            offset,
-                            offset + length - 1,
-                            self.md.len()
-                        ),
+                        format!("bytes {}-{}/{}", offset, offset + length - 1, self.md.len()),
                     );
                 } else {
                     resp.header(header::CONTENT_RANGE, format!("bytes */{}", length));

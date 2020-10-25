@@ -478,6 +478,8 @@ dependencies = [
 name = "bs3_files"
 version = "0.0.1"
 dependencies = [
+ "actix",
+ "actix-rt",
  "actix-service",
  "actix-web",
  "bitflags",
@@ -489,6 +491,7 @@ dependencies = [
  "mime",
  "mime_guess",
  "percent-encoding",
+ "rand",
  "v_htmlescape",
 ]
 

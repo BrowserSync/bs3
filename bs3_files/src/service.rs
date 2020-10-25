@@ -6,15 +6,21 @@ use std::{
 };
 
 use actix_service::Service;
-use actix_web::{dev::{ServiceRequest, ServiceResponse}, error::Error, guard::Guard, http::{header, Method}, HttpResponse, web};
+use actix_web::{
+    dev::{ServiceRequest, ServiceResponse},
+    error::Error,
+    guard::Guard,
+    http::{header, Method},
+    web, HttpResponse,
+};
 use futures_util::future::{ok, Either, LocalBoxFuture, Ready};
 
+use crate::served::{ServedAddr, ServedFile};
 use crate::{
-    named, Directory, DirectoryRenderer, FilesError, HttpService, MimeOverride,
-    NamedFile, PathBufWrap,
+    named, Directory, DirectoryRenderer, FilesError, HttpService, MimeOverride, NamedFile,
+    PathBufWrap,
 };
-use crate::served::{ServedFiles, ServedFile};
-use std::sync::{Mutex, Arc};
+use std::sync::Arc;
 
 /// Assembled file serving service.
 pub struct FilesService {
@@ -107,10 +113,9 @@ impl Service for FilesService {
 
                 match NamedFile::open(path) {
                     Ok(mut named_file) => {
-                        log::debug!("{:#?}", named_file);
+                        record(&req, &named_file);
                         if let Some(ref mime_override) = self.mime_override {
-                            let new_disposition =
-                                mime_override(&named_file.content_type.type_());
+                            let new_disposition = mime_override(&named_file.content_type.type_());
                             named_file.content_disposition.disposition = new_disposition;
                         }
                         named_file.flags = self.file_flags;
@@ -142,19 +147,16 @@ impl Service for FilesService {
         } else {
             match NamedFile::open(path) {
                 Ok(mut named_file) => {
-                    record(&req, &named_file, &Default::default());
+                    record(&req, &named_file);
                     if let Some(ref mime_override) = self.mime_override {
-                        let new_disposition =
-                            mime_override(&named_file.content_type.type_());
+                        let new_disposition = mime_override(&named_file.content_type.type_());
                         named_file.content_disposition.disposition = new_disposition;
                     }
                     named_file.flags = self.file_flags;
 
                     let (req, _) = req.into_parts();
                     match named_file.into_response(&req) {
-                        Ok(item) => {
-                            Either::Left(ok(ServiceResponse::new(req.clone(), item)))
-                        }
+                        Ok(item) => Either::Left(ok(ServiceResponse::new(req.clone(), item))),
                         Err(e) => Either::Left(ok(ServiceResponse::from_err(e, req))),
                     }
                 }
@@ -164,12 +166,31 @@ impl Service for FilesService {
     }
 }
 
-fn record(req: &ServiceRequest, nf: &NamedFile, web_path: &PathBuf) {
+fn record(req: &ServiceRequest, nf: &NamedFile) {
+    let referer: Option<String> = req
+        .headers()
+        .get("referer")
+        .and_then(|hv| hv.to_str().ok())
+        .map(|str| str.to_string());
+
+    // create the web_path
+    // need to check for the empty-string case which happens if the file is also the index.html
+    let web_path = match req.match_info().path() {
+        "" => "/",
+        _a => _a,
+    };
+
+    // Now try to access the actor that received notifications
     let served = req
-        .app_data::<web::Data<Arc<Mutex<ServedFiles>>>>()
+        .app_data::<web::Data<Arc<ServedAddr>>>()
         .map(|t| t.get_ref());
+
     if let Some(served) = served {
-        (*served.lock().unwrap()).add_from_path(nf.path().to_owned(), web_path.to_owned());
-        log::debug!("{:#?}", *served);
+        // (*served.lock().unwrap()).add_from_path(nf.path().to_owned(), web_path.to_owned());
+        served.0.do_send(ServedFile {
+            path: nf.path().to_owned(),
+            web_path: PathBuf::from(web_path),
+            referer,
+        });
     }
 }

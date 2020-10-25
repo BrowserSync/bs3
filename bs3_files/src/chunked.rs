@@ -17,8 +17,7 @@ use futures_util::future::{FutureExt, LocalBoxFuture};
 
 use crate::handle_error;
 
-type ChunkedBoxFuture =
-    LocalBoxFuture<'static, Result<(File, Bytes), BlockingError<io::Error>>>;
+type ChunkedBoxFuture = LocalBoxFuture<'static, Result<(File, Bytes), BlockingError<io::Error>>>;
 
 #[doc(hidden)]
 /// A helper created from a `std::fs::File` which reads the file
@@ -40,10 +39,7 @@ impl fmt::Debug for ChunkedReadFile {
 impl Stream for ChunkedReadFile {
     type Item = Result<Bytes, Error>;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(ref mut fut) = self.fut {
             return match ready!(Pin::new(fut).poll(cx)) {
                 Ok((file, bytes)) => {
@@ -70,14 +66,12 @@ impl Stream for ChunkedReadFile {
 
             self.fut = Some(
                 web::block(move || {
-                    let max_bytes =
-                        cmp::min(size.saturating_sub(counter), 65_536) as usize;
+                    let max_bytes = cmp::min(size.saturating_sub(counter), 65_536) as usize;
 
                     let mut buf = Vec::with_capacity(max_bytes);
                     file.seek(io::SeekFrom::Start(offset))?;
 
-                    let n_bytes =
-                        file.by_ref().take(max_bytes as u64).read_to_end(&mut buf)?;
+                    let n_bytes = file.by_ref().take(max_bytes as u64).read_to_end(&mut buf)?;
 
                     if n_bytes == 0 {
                         return Err(io::ErrorKind::UnexpectedEof.into());

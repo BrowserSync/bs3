@@ -32,8 +32,8 @@ mod files;
 mod named;
 mod path_buf;
 mod range;
-mod service;
 pub mod served;
+mod service;
 
 pub use crate::chunked::ChunkedReadFile;
 pub use crate::directory::Directory;
@@ -107,8 +107,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_if_modified_since_without_if_none_match() {
         let file = NamedFile::open("Cargo.toml").unwrap();
-        let since =
-            header::HttpDate::from(SystemTime::now().add(Duration::from_secs(60)));
+        let since = header::HttpDate::from(SystemTime::now().add(Duration::from_secs(60)));
 
         let req = TestRequest::default()
             .header(header::IF_MODIFIED_SINCE, since)
@@ -120,8 +119,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_if_modified_since_with_if_none_match() {
         let file = NamedFile::open("Cargo.toml").unwrap();
-        let since =
-            header::HttpDate::from(SystemTime::now().add(Duration::from_secs(60)));
+        let since = header::HttpDate::from(SystemTime::now().add(Duration::from_secs(60)));
 
         let req = TestRequest::default()
             .header(header::IF_NONE_MATCH, "miss_etag")
@@ -185,8 +183,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_named_file_non_ascii_file_name() {
         let mut file =
-            NamedFile::from_file(File::open("Cargo.toml").unwrap(), "貨物.toml")
-                .unwrap();
+            NamedFile::from_file(File::open("Cargo.toml").unwrap(), "貨物.toml").unwrap();
         {
             file.file();
             let _f: &File = &file;
@@ -469,10 +466,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_static_files_with_spaces() {
-        let mut srv = test::init_service(
-            App::new().service(Files::new("/", ".").index_file("Cargo.toml")),
-        )
-        .await;
+        let mut srv =
+            test::init_service(App::new().service(Files::new("/", ".").index_file("Cargo.toml")))
+                .await;
         let request = TestRequest::get()
             .uri("/tests/test%20space.binary")
             .to_request();
@@ -507,10 +503,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_files_guards() {
-        let mut srv = test::init_service(
-            App::new().service(Files::new("/", ".").use_guards(guard::Post())),
-        )
-        .await;
+        let mut srv =
+            test::init_service(App::new().service(Files::new("/", ".").use_guards(guard::Post())))
+                .await;
 
         let req = TestRequest::default()
             .uri("/Cargo.toml")
@@ -578,10 +573,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_static_files() {
-        let mut srv = test::init_service(
-            App::new().service(Files::new("/", ".").show_files_listing()),
-        )
-        .await;
+        let mut srv =
+            test::init_service(App::new().service(Files::new("/", ".").show_files_listing())).await;
         let req = TestRequest::with_uri("/missing").to_request();
 
         let resp = test::call_service(&mut srv, req).await;
@@ -593,10 +586,8 @@ mod tests {
         let resp = test::call_service(&mut srv, req).await;
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let mut srv = test::init_service(
-            App::new().service(Files::new("/", ".").show_files_listing()),
-        )
-        .await;
+        let mut srv =
+            test::init_service(App::new().service(Files::new("/", ".").show_files_listing())).await;
         let req = TestRequest::with_uri("/tests").to_request();
         let resp = test::call_service(&mut srv, req).await;
         assert_eq!(

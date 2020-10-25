@@ -5,8 +5,6 @@
 use actix::prelude::*;
 use rand::{self, rngs::ThreadRng, Rng};
 use std::collections::{HashMap, HashSet};
-use std::thread;
-use std::time::Duration;
 
 /// Chat server sends this messages to session
 #[derive(Message)]
@@ -62,7 +60,7 @@ pub struct ChatServer {
     sessions: HashMap<usize, Recipient<Message>>,
     rooms: HashMap<String, HashSet<usize>>,
     rng: ThreadRng,
-    others: Vec<Addr<ChatServer>>
+    others: Vec<Addr<ChatServer>>,
 }
 
 impl Default for ChatServer {
@@ -106,7 +104,7 @@ impl Actor for ChatServer {
     /// with other actors.
     type Context = Context<Self>;
 
-    fn stopped(&mut self, ctx: &mut Self::Context) {
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
         log::debug!("stopped!");
     }
 }

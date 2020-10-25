@@ -1,14 +1,16 @@
 mod fs_wrap;
 
 use actix::prelude::*;
+use notify::{
+    raw_watcher, watcher, DebouncedEvent, RawEvent, RecommendedWatcher, RecursiveMode,
+    Result as FsResult, Watcher,
+};
 use std::path::PathBuf;
-use notify::{RecommendedWatcher, Watcher, Result as FsResult, RecursiveMode, watcher, DebouncedEvent, RawEvent, raw_watcher};
-use std::sync::mpsc::channel;
-use std::time::Duration;
-use std::env::current_dir;
+
+use bs3_files::served::ServedFile;
 
 pub struct FsWatcher {
-    evt_count: usize
+    evt_count: usize,
 }
 
 impl Default for FsWatcher {
@@ -33,7 +35,7 @@ pub struct AddWatcher {
 impl Handler<AddWatcher> for FsWatcher {
     type Result = FsResult<()>;
 
-    fn handle(&mut self, msg: AddWatcher, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, _msg: AddWatcher, _ctx: &mut Context<Self>) -> Self::Result {
         // println!("AddWatcher = {}", msg.pattern.display());
         // log::trace!("AddWatcher = {}", msg.pattern.display());
         // let mut watcher: RecommendedWatcher = Watcher::new_immediate(|res| {
@@ -77,5 +79,13 @@ impl Handler<AddWatcher> for FsWatcher {
         // }
 
         Ok(())
+    }
+}
+
+impl Handler<ServedFile> for FsWatcher {
+    type Result = ();
+
+    fn handle(&mut self, msg: ServedFile, _ctx: &mut Context<Self>) -> Self::Result {
+        log::debug!("ServedFile = {:#?}", msg);
     }
 }
