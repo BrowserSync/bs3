@@ -65,9 +65,10 @@ async fn main() -> std::io::Result<()> {
     served.do_send(Register {
         addr: fs_server.clone().recipient(),
     });
-    fs_server.do_send(AddWatcher {
-        pattern: std::path::PathBuf::from("./fixtures"),
-    });
+    //
+    // fs_server.do_send(AddWatcher {
+    //     pattern: std::path::PathBuf::from("./fixtures"),
+    // });
 
     HttpServer::new(move || {
         let mods = RespModData {
