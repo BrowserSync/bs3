@@ -14,17 +14,14 @@ use bs3_files::served::{Register, Served, ServedAddr};
 use bs3_files::Files;
 
 use crate::{
-    client::css::Css,
-    client::script::Script,
-    fs::{AddWatcher, FsWatcher},
-    resp::RespModData,
-    ws::chat_route,
+    client::css::Css, client::script::Script, fs::FsWatcher, resp::RespModData, ws::chat_route,
     ws::server::ChatServer,
 };
 
 use bytes::Bytes;
 use futures::StreamExt;
 
+use crate::fs::RegisterFs;
 use actix_service::{Service, ServiceFactory};
 use std::sync::Arc;
 // use crate::resp::Logging;
@@ -59,13 +56,19 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
     let ws_server = ChatServer::default().start();
     let fs_server = FsWatcher::default().start();
+
     let served = Served::default().start();
     let served_addr = Arc::new(ServedAddr(served.clone()));
 
+    // let the FS watcher know when a file is served from disk
     served.do_send(Register {
         addr: fs_server.clone().recipient(),
     });
-    //
+
+    fs_server.do_send(RegisterFs {
+        addr: ws_server.clone().recipient(),
+    });
+
     // fs_server.do_send(AddWatcher {
     //     pattern: std::path::PathBuf::from("./fixtures"),
     // });

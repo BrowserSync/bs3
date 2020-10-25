@@ -468,6 +468,7 @@ dependencies = [
  "bytes",
  "env_logger",
  "futures",
+ "futures-util",
  "log",
  "notify",
  "pin-project 1.0.1",

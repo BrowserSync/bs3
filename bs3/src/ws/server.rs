@@ -2,7 +2,9 @@
 //! And manages available rooms. Peers send messages to other peers in same
 //! room through `ChatServer`.
 
+use crate::fs::FsNotify;
 use actix::prelude::*;
+use bs3_files::served::ServedFile;
 use rand::{self, rngs::ThreadRng, Rng};
 use std::collections::{HashMap, HashSet};
 
@@ -106,6 +108,15 @@ impl Actor for ChatServer {
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         log::debug!("stopped!");
+    }
+}
+
+impl Handler<FsNotify> for ChatServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: FsNotify, ctx: &mut Context<Self>) -> Self::Result {
+        let msg = format!("file event for {}", msg.item.web_path.display());
+        self.send_message(&"Main".to_owned(), &msg, 0);
     }
 }
 
