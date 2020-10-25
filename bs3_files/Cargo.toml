@@ -1,0 +1,25 @@
+[package]
+name = "bs3_files"
+version = "0.0.1"
+description = "Static file serving for Actix Web"
+readme = "README.md"
+keywords = ["actix", "http", "async", "futures"]
+edition = "2018"
+
+[lib]
+name = "bs3_files"
+path = "src/lib.rs"
+
+[dependencies]
+actix-web = { version = "3.1.0" }
+actix-service = "1.0.6"
+bitflags = "1"
+bytes = "0.5.3"
+futures-core = { version = "0.3.5", default-features = false }
+futures-util = { version = "0.3.5", default-features = false }
+derive_more = "0.99.2"
+log = "0.4.11"
+mime = "0.3"
+mime_guess = "2.0.1"
+percent-encoding = "2.1"
+v_htmlescape = "0.10"

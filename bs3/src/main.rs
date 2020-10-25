@@ -5,24 +5,35 @@ mod ws;
 mod fs;
 // mod resp2;
 
-use actix_files::{Files, NamedFile};
-use actix_web::{web, App, HttpResponse, HttpServer, HttpRequest, HttpMessage};
-
-use crate::client::css::Css;
-use crate::client::script::Script;
-use crate::resp::RespModData;
-use crate::ws::chat_route;
-use crate::ws::server::{ChatServer, Message};
 use actix::Actor;
-use actix_web::http::StatusCode;
+use bs3_files::{Files};
+use bs3_files::served::{ServedFiles};
+use actix_web::{
+    web,
+    App,
+    HttpResponse,
+    HttpServer,
+    HttpRequest,
+    HttpMessage,
+    http::StatusCode,
+    dev::ServiceResponse
+};
+
+use crate::{
+    ws::chat_route,
+    resp::RespModData,
+    client::script::Script,
+    client::css::Css,
+    ws::server::{ChatServer, Message},
+    fs::{FsWatcher, AddWatcher},
+};
 
 use bytes::Bytes;
 use futures::StreamExt;
-use crate::fs::{FsWatcher, AddWatcher};
-use actix_web::dev::ServiceResponse;
 use futures::future::{ok, Either};
 use std::path::PathBuf;
 use actix_service::{Service, IntoServiceFactory, ServiceFactory};
+use std::sync::{Mutex, Arc};
 // use crate::resp::Logging;
 // use crate::resp::Logging;
 // use crate::resp2::SayHi;
@@ -53,9 +64,9 @@ async fn main() -> std::io::Result<()> {
     // std::env::set_var("RUST_LOG", "actix_web=info,bs3=debug,trace");
     // std::env::set_var("RUST_LOG", "bs3=debug,trace");
     env_logger::init();
-
     let ws_server = ChatServer::default().start();
     let fs_server = FsWatcher::default().start();
+    let served = Arc::new(Mutex::new(ServedFiles::default()));
 
     fs_server.do_send(AddWatcher { pattern: std::path::PathBuf::from("./fixtures") });
 
@@ -71,6 +82,7 @@ async fn main() -> std::io::Result<()> {
             // .service(web::resource("/ws/").to(chat_route))
             .data(ws_server.clone())
             .data(mods)
+            .data(served.clone())
             .wrap(resp::RespModMiddleware)
             .service(web::resource("/__bs3/ws/").to(chat_route))
             .service(web::resource("/chunked").to(chunked_response))
