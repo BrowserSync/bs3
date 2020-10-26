@@ -4,7 +4,7 @@
 
 use crate::fs::FsNotify;
 use actix::prelude::*;
-use bs3_files::served::ServedFile;
+
 use rand::{self, rngs::ThreadRng, Rng};
 use std::collections::{HashMap, HashSet};
 
@@ -62,7 +62,6 @@ pub struct ChatServer {
     sessions: HashMap<usize, Recipient<Message>>,
     rooms: HashMap<String, HashSet<usize>>,
     rng: ThreadRng,
-    others: Vec<Addr<ChatServer>>,
 }
 
 impl Default for ChatServer {
@@ -75,7 +74,6 @@ impl Default for ChatServer {
             sessions: HashMap::new(),
             rooms,
             rng: rand::thread_rng(),
-            others: Vec::new(),
         }
     }
 }
@@ -114,7 +112,7 @@ impl Actor for ChatServer {
 impl Handler<FsNotify> for ChatServer {
     type Result = ();
 
-    fn handle(&mut self, msg: FsNotify, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: FsNotify, _ctx: &mut Context<Self>) -> Self::Result {
         let msg = format!("file event for {}", msg.item.web_path.display());
         self.send_message(&"Main".to_owned(), &msg, 0);
     }

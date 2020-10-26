@@ -12,7 +12,7 @@
 //! ```
 
 #![deny(rust_2018_idioms)]
-#![warn(missing_docs, missing_debug_implementations)]
+#![warn(missing_debug_implementations)]
 
 use std::io;
 

@@ -1,29 +1,24 @@
 use actix::prelude::*;
 use actix::Context;
-use notify::{
-    raw_watcher, watcher, DebouncedEvent, FsEventWatcher, RawEvent, RecommendedWatcher,
-    RecursiveMode, Result as FsResult, Watcher,
-};
+use notify::{watcher, DebouncedEvent, FsEventWatcher, RecursiveMode, Watcher};
 use std::path::PathBuf;
 
 use bs3_files::served::ServedFile;
 use crossbeam_channel;
-use crossbeam_channel::internal::select;
+
 use crossbeam_channel::unbounded;
-use futures_util::StreamExt;
+
 use rand::rngs::ThreadRng;
 use rand::Rng;
 use std::collections::HashMap;
-use std::env::current_dir;
-use std::sync::mpsc::{channel, Receiver};
-use std::sync::Arc;
-use std::thread;
+
+use std::sync::mpsc::channel;
+
 use std::time::Duration;
 
 pub struct FsWatcher {
     items: HashMap<PathBuf, ServedFile>,
     listeners: HashMap<usize, Recipient<FsNotify>>,
-    evt_count: usize,
     rng: ThreadRng,
     watcher: Option<FsEventWatcher>,
 }
@@ -33,7 +28,6 @@ impl Default for FsWatcher {
         Self {
             items: HashMap::new(),
             listeners: HashMap::new(),
-            evt_count: 0,
             rng: rand::thread_rng(),
             watcher: None,
         }
@@ -41,10 +35,13 @@ impl Default for FsWatcher {
 }
 
 impl Actor for FsWatcher {
-    /// We are going to use simple Context, we just need ability to communicate
-    /// with other actors.
+
     type Context = Context<Self>;
 
+    ///
+    /// When this actor starts we start a couple of threads (via the Arbiter)
+    /// to handle listening to file-system events in a none-blocking way
+    ///
     fn started(&mut self, ctx: &mut Self::Context) {
         let a = actix_rt::Arbiter::new();
         let b = actix_rt::Arbiter::new();
@@ -52,6 +49,7 @@ impl Actor for FsWatcher {
         let watcher = watcher(tx, Duration::from_millis(300)).expect("create watcher failed");
         let (s, r) = unbounded::<DebouncedEvent>();
 
+        // save the watcher, so that we can add more patterns later (eg: when files are served)
         self.watcher = Some(watcher);
 
         let self_address = ctx.address();
@@ -60,10 +58,10 @@ impl Actor for FsWatcher {
             loop {
                 match rx.recv() {
                     Ok(evt) => match s.send(evt) {
-                        Ok(..) => println!("sent!"),
                         Err(e) => println!("send error = {:#?}", e),
+                        _ => { /* noop */ }
                     },
-                    Err(e) => {
+                    Err(_e) => {
                         // no-op, we cannot recover/handle this
                     }
                 };
@@ -102,6 +100,12 @@ pub struct FsNotify {
     pub item: ServedFile,
 }
 
+impl FsNotify {
+    pub fn new(item: impl Into<ServedFile>) -> Self {
+        Self { item: item.into() }
+    }
+}
+
 #[derive(Message, Debug, Clone)]
 #[rtype(result = "()")]
 struct FsNotifyAll {
@@ -112,18 +116,18 @@ struct FsNotifyAll {
 impl Handler<FsNotifyAll> for FsWatcher {
     type Result = ();
 
-    fn handle(&mut self, msg: FsNotifyAll, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: FsNotifyAll, _ctx: &mut Context<Self>) -> Self::Result {
         log::debug!("FsNotifyAll {:?}", msg);
         log::debug!(
             "FsNotifyAll self.listeners count: [{}]",
             self.listeners.len()
         );
-        for (k, v) in self.listeners.iter() {
+        for (_k, v) in self.listeners.iter() {
             if let Some(served) = self.items.get(&msg.pb) {
                 log::debug!("found `served` {:?}", served);
-                v.do_send(FsNotify {
-                    item: served.clone(),
-                });
+                if let Err(_e) = v.do_send(FsNotify::new(served.clone())) {
+                    log::error!("failed to send FsNotify to a listener");
+                }
             }
         }
     }
@@ -132,7 +136,7 @@ impl Handler<FsNotifyAll> for FsWatcher {
 impl Handler<ServedFile> for FsWatcher {
     type Result = ();
 
-    fn handle(&mut self, msg: ServedFile, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: ServedFile, _ctx: &mut Context<Self>) -> Self::Result {
         // log::debug!("ServedFile = {:#?}", msg);
         self.items.insert(msg.path.clone(), msg.clone());
         if let Some(watcher) = self.watcher.as_mut() {

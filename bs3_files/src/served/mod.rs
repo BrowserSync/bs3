@@ -30,8 +30,10 @@ impl Handler<ServedFile> for Served {
         self.items.insert(msg.clone());
         log::debug!("self.items contains {} entries", self.items.len());
         log::debug!("relaying this msg to {} listeners", self.listeners.len());
-        for (_id, rec) in self.listeners.iter() {
-            rec.do_send(msg.clone());
+        for (_id, listener) in self.listeners.iter() {
+            if let Err(_e) = listener.do_send(msg.clone()) {
+                log::error!("failed to send ServedFile to a listener");
+            }
         }
     }
 }

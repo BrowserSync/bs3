@@ -156,7 +156,6 @@ pub struct BodyLogger<B> {
 
 impl<B: MessageBody> MessageBody for BodyLogger<B> {
     fn size(&self) -> BodySize {
-        log::debug!("self.body.size() {:?}", self.body.size());
         if self.process {
             BodySize::Stream
         } else {
@@ -174,8 +173,6 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
 
         let original_body_size = this.body.size().clone();
         let is_stream = original_body_size == BodySize::Stream;
-
-        log::debug!("poll");
 
         loop {
             let s = this.body.as_mut();
@@ -214,7 +211,6 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
                         log::debug!("early exit");
                         return Poll::Ready(None);
                     }
-                    log::debug!("Poll::Ready");
                     if is_stream {
                         log::debug!(
                             "original body was a stream, total bytes: {:?}",

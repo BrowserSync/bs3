@@ -6,10 +6,7 @@ mod ws;
 // mod resp2;
 
 use actix::Actor;
-use actix_web::{
-    dev::ServiceResponse, http::StatusCode, web, App, HttpMessage, HttpRequest, HttpResponse,
-    HttpServer,
-};
+use actix_web::{http::StatusCode, web, App, HttpResponse, HttpServer};
 use bs3_files::served::{Register, Served, ServedAddr};
 use bs3_files::Files;
 
@@ -22,7 +19,6 @@ use bytes::Bytes;
 use futures::StreamExt;
 
 use crate::fs::RegisterFs;
-use actix_service::{Service, ServiceFactory};
 use std::sync::Arc;
 // use crate::resp::Logging;
 // use crate::resp::Logging;
