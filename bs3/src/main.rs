@@ -57,7 +57,9 @@ async fn main() -> std::io::Result<()> {
     let ws_server = ChatServer::default().start();
     let fs_server = FsWatcher::default().start();
 
+    // service for tracking served static files
     let served = Served::default().start();
+
     let served_addr = Arc::new(ServedAddr(served.clone()));
 
     // let the FS watcher know when a file is served from disk
@@ -72,6 +74,7 @@ async fn main() -> std::io::Result<()> {
     // fs_server.do_send(AddWatcher {
     //     pattern: std::path::PathBuf::from("./fixtures"),
     // });
+
 
     HttpServer::new(move || {
         let mods = RespModData {
