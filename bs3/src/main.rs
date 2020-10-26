@@ -40,6 +40,7 @@ async fn chunked_response() -> HttpResponse {
         </head>
         <body>
           <h1>Chunked</h1>
+          <script src='app.js'></script>
         </body>
         </html>"
     ];
@@ -74,7 +75,6 @@ async fn main() -> std::io::Result<()> {
     // fs_server.do_send(AddWatcher {
     //     pattern: std::path::PathBuf::from("./fixtures"),
     // });
-
 
     HttpServer::new(move || {
         let mods = RespModData {

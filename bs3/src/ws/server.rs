@@ -2,7 +2,7 @@
 //! And manages available rooms. Peers send messages to other peers in same
 //! room through `ChatServer`.
 
-use crate::fs::{FsNotify};
+use crate::fs::FsNotify;
 use actix::prelude::*;
 use bs3_files::served::ServedFile;
 use rand::{self, rngs::ThreadRng, Rng};

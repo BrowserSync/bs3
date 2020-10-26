@@ -1,23 +1,27 @@
 use actix::prelude::*;
 use actix::Context;
-use notify::{raw_watcher, watcher, DebouncedEvent, RawEvent, RecommendedWatcher, RecursiveMode, Result as FsResult, Watcher, FsEventWatcher};
+use notify::{
+    raw_watcher, watcher, DebouncedEvent, FsEventWatcher, RawEvent, RecommendedWatcher,
+    RecursiveMode, Result as FsResult, Watcher,
+};
 use std::path::PathBuf;
 
 use bs3_files::served::ServedFile;
+use crossbeam_channel;
+use crossbeam_channel::internal::select;
+use crossbeam_channel::unbounded;
 use futures_util::StreamExt;
 use rand::rngs::ThreadRng;
 use rand::Rng;
 use std::collections::HashMap;
 use std::env::current_dir;
 use std::sync::mpsc::{channel, Receiver};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use std::sync::Arc;
-use crossbeam_channel;
-use crossbeam_channel::unbounded;
 
 pub struct FsWatcher {
-    items: HashMap<usize, Recipient<ServedFile>>,
+    items: HashMap<PathBuf, ServedFile>,
     listeners: HashMap<usize, Recipient<FsNotify>>,
     evt_count: usize,
     rng: ThreadRng,
@@ -43,7 +47,9 @@ impl Actor for FsWatcher {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         let a = actix_rt::Arbiter::new();
-        let (rx, watcher) = create_watcher();
+        let b = actix_rt::Arbiter::new();
+        let (tx, rx) = channel();
+        let watcher = watcher(tx, Duration::from_millis(300)).expect("create watcher failed");
         let (s, r) = unbounded::<DebouncedEvent>();
 
         self.watcher = Some(watcher);
@@ -53,21 +59,18 @@ impl Actor for FsWatcher {
         a.exec_fn(move || {
             loop {
                 match rx.recv() {
-                    Ok(evt) => {
-                        log::debug!("??? try send {:?}", evt);
-                        match s.send(evt) {
-                            Ok(..) => println!("sent!"),
-                            Err(e) => println!("send error = {:#?}", e),
-                        }
+                    Ok(evt) => match s.send(evt) {
+                        Ok(..) => println!("sent!"),
+                        Err(e) => println!("send error = {:#?}", e),
                     },
                     Err(e) => {
-                        eprintln!("e={:?}", e);
+                        // no-op, we cannot recover/handle this
                     }
                 };
             }
         });
 
-        a.exec_fn(move || {
+        b.exec_fn(move || {
             let self_add = self_address.clone();
             receive_fs_messages(self_add, r);
         });
@@ -102,7 +105,7 @@ pub struct FsNotify {
 #[derive(Message, Debug, Clone)]
 #[rtype(result = "()")]
 struct FsNotifyAll {
-    item: PathBuf,
+    pb: PathBuf,
 }
 
 /// Handler for `ListRooms` message.
@@ -110,8 +113,18 @@ impl Handler<FsNotifyAll> for FsWatcher {
     type Result = ();
 
     fn handle(&mut self, msg: FsNotifyAll, ctx: &mut Context<Self>) -> Self::Result {
+        log::debug!("FsNotifyAll {:?}", msg);
+        log::debug!(
+            "FsNotifyAll self.listeners count: [{}]",
+            self.listeners.len()
+        );
         for (k, v) in self.listeners.iter() {
-            // v.do_send(msg.clone());
+            if let Some(served) = self.items.get(&msg.pb) {
+                log::debug!("found `served` {:?}", served);
+                v.do_send(FsNotify {
+                    item: served.clone(),
+                });
+            }
         }
     }
 }
@@ -121,31 +134,14 @@ impl Handler<ServedFile> for FsWatcher {
 
     fn handle(&mut self, msg: ServedFile, ctx: &mut Context<Self>) -> Self::Result {
         // log::debug!("ServedFile = {:#?}", msg);
-        let add = ctx.address();
+        self.items.insert(msg.path.clone(), msg.clone());
         if let Some(watcher) = self.watcher.as_mut() {
             log::debug!("+++ adding item to watch {}", msg.path.display());
-            watcher.watch(&msg.path, RecursiveMode::NonRecursive).expect("watcher.watch");
+            watcher
+                .watch(&msg.path, RecursiveMode::NonRecursive)
+                .expect("watcher.watch");
         }
-        // if let Some(..) = self.arbiter {
-        //     log::debug!("bailing since we already have a Arbiter");
-        // } else {
-        //     log::debug!("+++ creating new Arbiter");
-        //     // let a = actix_rt::Arbiter::new();
-        //     // let pb_clone = msg.path.clone();
-        //     // a.send(Box::pin(async move {
-        //     //     let self_add = add.clone();
-        //     //     try_run(msg.clone(), self_add)
-        //     // }));
-        //     // self.arbiters.insert(pb_clone, a);
-        // }
     }
-}
-
-fn create_watcher() -> (Receiver<DebouncedEvent>, FsEventWatcher) {
-    let (tx, rx) = channel();
-    let mut watcher = watcher(tx, Duration::from_millis(300)).expect("create watcher failed");
-    // log::debug!("+~+ watching {}", pattern.path.display());
-    (rx, watcher)
 }
 
 fn receive_fs_messages(addr: Addr<FsWatcher>, rx: crossbeam_channel::Receiver<DebouncedEvent>) {
@@ -176,16 +172,11 @@ fn receive_fs_messages(addr: Addr<FsWatcher>, rx: crossbeam_channel::Receiver<De
                     }
                 }
             }
-            Err(e) => {
-                log::debug!("watch error: {:?}", e);
-                None
-            }
+            Err(_e) => None,
         };
-        log::debug!("next event = {:?}", next);
         if let Some(pb) = next {
-            addr.do_send(FsNotifyAll {
-                item: pb.clone(),
-            });
+            log::debug!("next event = {:?}", pb);
+            addr.do_send(FsNotifyAll { pb: pb.clone() });
         }
     }
 }
