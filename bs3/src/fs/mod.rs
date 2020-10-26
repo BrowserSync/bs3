@@ -10,7 +10,7 @@ use crossbeam_channel::unbounded;
 
 use rand::rngs::ThreadRng;
 use rand::Rng;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use std::sync::mpsc::channel;
 
@@ -21,6 +21,7 @@ pub struct FsWatcher {
     listeners: HashMap<usize, Recipient<FsNotify>>,
     rng: ThreadRng,
     watcher: Option<FsEventWatcher>,
+    watched: HashSet<PathBuf>,
 }
 
 impl Default for FsWatcher {
@@ -30,12 +31,12 @@ impl Default for FsWatcher {
             listeners: HashMap::new(),
             rng: rand::thread_rng(),
             watcher: None,
+            watched: HashSet::new(),
         }
     }
 }
 
 impl Actor for FsWatcher {
-
     type Context = Context<Self>;
 
     ///
@@ -94,7 +95,7 @@ impl Handler<RegisterFs> for FsWatcher {
     }
 }
 
-#[derive(Message, Debug, Clone)]
+#[derive(Message, Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[rtype(result = "()")]
 pub struct FsNotify {
     pub item: ServedFile,
@@ -117,14 +118,14 @@ impl Handler<FsNotifyAll> for FsWatcher {
     type Result = ();
 
     fn handle(&mut self, msg: FsNotifyAll, _ctx: &mut Context<Self>) -> Self::Result {
-        log::debug!("FsNotifyAll {:?}", msg);
-        log::debug!(
+        log::debug!("{:?}", msg);
+        log::trace!(
             "FsNotifyAll self.listeners count: [{}]",
             self.listeners.len()
         );
         for (_k, v) in self.listeners.iter() {
             if let Some(served) = self.items.get(&msg.pb) {
-                log::debug!("found `served` {:?}", served);
+                log::trace!("found `served` {:?}", served);
                 if let Err(_e) = v.do_send(FsNotify::new(served.clone())) {
                     log::error!("failed to send FsNotify to a listener");
                 }
@@ -138,12 +139,23 @@ impl Handler<ServedFile> for FsWatcher {
 
     fn handle(&mut self, msg: ServedFile, _ctx: &mut Context<Self>) -> Self::Result {
         // log::debug!("ServedFile = {:#?}", msg);
+        if self.watched.contains(&msg.path) {
+            log::trace!("!! skipping, already watching: {}", msg.path.display());
+            return ();
+        }
         self.items.insert(msg.path.clone(), msg.clone());
         if let Some(watcher) = self.watcher.as_mut() {
             log::debug!("+++ adding item to watch {}", msg.path.display());
-            watcher
-                .watch(&msg.path, RecursiveMode::NonRecursive)
-                .expect("watcher.watch");
+            let result = watcher.watch(&msg.path, RecursiveMode::NonRecursive);
+            match result {
+                Ok(..) => {
+                    self.watched.insert(msg.path);
+                }
+                Err(e) => {
+                    log::error!("Could not watch the path {}", msg.path.display());
+                    log::error!(" ^^ {}", e);
+                }
+            }
         }
     }
 }
@@ -179,7 +191,7 @@ fn receive_fs_messages(addr: Addr<FsWatcher>, rx: crossbeam_channel::Receiver<De
             Err(_e) => None,
         };
         if let Some(pb) = next {
-            log::debug!("next event = {:?}", pb);
+            log::trace!("path in question: = {:?}", pb);
             addr.do_send(FsNotifyAll { pb: pb.clone() });
         }
     }

@@ -122,7 +122,7 @@ where
         Poll::Ready(res.map(|res| {
             let req = res.request().clone();
             res.map_body(move |_head, body| {
-                log::debug!("map_body for {}", req.uri().to_string());
+                log::trace!("map_body for {}", req.uri().to_string());
                 let head = req.head();
                 let transforms = req
                     .app_data::<web::Data<RespModData>>()
@@ -178,13 +178,13 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
             let s = this.body.as_mut();
             return match s.poll_next(cx) {
                 Poll::Ready(Some(Ok(chunk))) => {
-                    log::debug!("chunk size = {:?}", chunk.size());
+                    log::trace!("chunk size = {:?}", chunk.size());
                     if !*this.process {
-                        log::debug!("passing through");
+                        log::trace!("chunk pass-thru");
                         return Poll::Ready(Some(Ok(chunk)));
                     }
                     this.body_accum.extend_from_slice(&chunk);
-                    log::debug!(
+                    log::trace!(
                         "this.body_accum = {:?}, this.body = {:?}",
                         this.body_accum.size(),
                         original_body_size
@@ -198,7 +198,7 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
                         process(this.body_accum.to_bytes(), uri, transforms, &this.indexes)
                     } else {
                         if is_stream {
-                            log::debug!("empty");
+                            log::trace!("continue since this is a stream");
                             continue;
                         } else {
                             Poll::Pending
@@ -208,7 +208,7 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
                 Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
                 Poll::Ready(None) => {
                     if *this.eof {
-                        log::debug!("early exit");
+                        log::trace!("early exit since this.eof = true");
                         return Poll::Ready(None);
                     }
                     if is_stream {
@@ -228,7 +228,7 @@ impl<B: MessageBody> MessageBody for BodyLogger<B> {
                     }
                 }
                 Poll::Pending => {
-                    log::debug!("Poll::Pending {:?}", req.uri());
+                    log::trace!("Poll::Pending {:?}", req.uri());
                     Poll::Pending
                 }
             };

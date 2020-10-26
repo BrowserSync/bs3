@@ -15,7 +15,9 @@ impl Actor for Served {
     type Context = Context<Self>;
 }
 
-#[derive(Message, Default, Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(
+    Message, Default, Clone, Debug, Eq, Hash, PartialEq, serde::Serialize, serde::Deserialize,
+)]
 #[rtype(result = "()")]
 pub struct ServedFile {
     pub path: PathBuf,
@@ -28,8 +30,8 @@ impl Handler<ServedFile> for Served {
 
     fn handle(&mut self, msg: ServedFile, _ctx: &mut Context<Self>) -> Self::Result {
         self.items.insert(msg.clone());
-        log::debug!("self.items contains {} entries", self.items.len());
-        log::debug!("relaying this msg to {} listeners", self.listeners.len());
+        log::trace!("self.items contains {} entries", self.items.len());
+        log::trace!("relaying this msg to {} listeners", self.listeners.len());
         for (_id, listener) in self.listeners.iter() {
             if let Err(_e) = listener.do_send(msg.clone()) {
                 log::error!("failed to send ServedFile to a listener");

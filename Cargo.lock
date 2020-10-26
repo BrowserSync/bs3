@@ -474,6 +474,8 @@ dependencies = [
  "notify",
  "pin-project 1.0.1",
  "rand",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -494,6 +496,8 @@ dependencies = [
  "mime_guess",
  "percent-encoding",
  "rand",
+ "serde",
+ "serde_json",
  "v_htmlescape",
 ]
 

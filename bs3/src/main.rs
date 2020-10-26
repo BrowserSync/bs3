@@ -11,8 +11,8 @@ use bs3_files::served::{Register, Served, ServedAddr};
 use bs3_files::Files;
 
 use crate::{
-    client::css::Css, client::script::Script, fs::FsWatcher, resp::RespModData, ws::chat_route,
-    ws::server::ChatServer,
+    client::css::Css, client::script::Script, fs::FsWatcher, resp::RespModData,
+    ws::server::WsServer, ws::ws_route,
 };
 
 use bytes::Bytes;
@@ -51,7 +51,7 @@ async fn main() -> std::io::Result<()> {
     // std::env::set_var("RUST_LOG", "actix_web=info,bs3=debug,trace");
     // std::env::set_var("RUST_LOG", "bs3=debug,trace");
     env_logger::init();
-    let ws_server = ChatServer::default().start();
+    let ws_server = WsServer::default().start();
     let fs_server = FsWatcher::default().start();
 
     // service for tracking served static files
@@ -86,7 +86,7 @@ async fn main() -> std::io::Result<()> {
             .data(mods)
             .data(served_addr.clone())
             .wrap(resp::RespModMiddleware)
-            .service(web::resource("/__bs3/ws/").to(chat_route))
+            .service(web::resource("/__bs3/ws/").to(ws_route))
             .service(web::resource("/chunked").to(chunked_response))
             // .wrap(resp2::Logging)
             // .wrap(Logging)

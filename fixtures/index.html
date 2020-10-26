@@ -10,6 +10,12 @@
         $(function () {
             var conn = null;
 
+            window.addEventListener("scroll", function() {
+                // if (conn) {
+                //     conn.send(JSON.stringify({kind: "Scroll", x: 0, y: window.scrollY}));
+                // }
+            });
+
             function log(msg) {
                 var control = $('#log');
                 control.html(control.html() + msg + '<br/>');
@@ -71,18 +77,27 @@
                 $('#text').val('').focus();
                 return false;
             });
+            $('#scroll').click(function () {
+                log('Sending scroll message');
+                conn.send(JSON.stringify({kind: "Scroll", x: 10, y: 20}));
+                return false;
+            });
             $('#text').keyup(function (e) {
                 if (e.keyCode === 13) {
                     $('#send').click();
                     return false;
                 }
             });
+            connect();
         });
     </script>
 </head>
 <body>
 <h3>Chat!</h3>
 <div>
+    <div>
+        <button id="scroll">Scroll</button>
+    </div>
     <button id="connect">Connect</button>&nbsp;|&nbsp;Status:
     <span id="status">disconnected</span>
 </div>
