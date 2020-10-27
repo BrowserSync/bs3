@@ -7,11 +7,17 @@ pub struct Script;
 
 impl RespMod for Script {
     fn process_str(&self, str: String) -> String {
-        str.replace("</body>", "<script>console.log('here!')</script></body>")
+        let injected = r#"
+        <!-- injected by Browsersync -->
+        <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>
+        <script src="ws.js"></script>
+        <!-- end:injected by Browsersync -->
+        </body>
+        "#;
+        str.replace("</body>", injected)
     }
     fn guard(&self, req_head: &RequestHead, res_head: &ResponseHead) -> bool {
-        has_no_referer(&req_head.headers)
-            && is_accept_html(&req_head.headers)
+        is_accept_html(&req_head.headers)
             && is_content_type_html(&res_head.headers)
     }
     fn name(&self) -> String {

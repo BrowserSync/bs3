@@ -1,111 +1,13 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="styles/styles2.css">
-    <meta charset="utf-8"/>
-    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js">
-    </script>
-    <script language="javascript" type="text/javascript">
-        $(function () {
-            var conn = null;
-
-            window.addEventListener("scroll", function() {
-                // if (conn) {
-                //     conn.send(JSON.stringify({kind: "Scroll", x: 0, y: window.scrollY}));
-                // }
-            });
-
-            function log(msg) {
-                var control = $('#log');
-                control.html(control.html() + msg + '<br/>');
-                control.scrollTop(control.scrollTop() + 1000);
-            }
-
-            function connect() {
-                disconnect();
-                var wsUri = (window.location.protocol == 'https:' && 'wss://' || 'ws://') + window.location.host + '/__bs3/ws/';
-                conn = new WebSocket(wsUri);
-                log('Connecting...');
-                conn.onopen = function () {
-                    log('Connected.');
-                    update_ui();
-                };
-                conn.onmessage = function (e) {
-                    log('Received: ' + e.data);
-                };
-                conn.onclose = function () {
-                    log('Disconnected.');
-                    conn = null;
-                    update_ui();
-                };
-            }
-
-            function disconnect() {
-                if (conn != null) {
-                    log('Disconnecting...');
-                    conn.close();
-                    conn = null;
-                    update_ui();
-                }
-            }
-
-            function update_ui() {
-                var msg = '';
-                if (conn == null) {
-                    $('#status').text('disconnected');
-                    $('#connect').html('Connect');
-                } else {
-                    $('#status').text('connected (' + conn.protocol + ')');
-                    $('#connect').html('Disconnect');
-                }
-            }
-
-            $('#connect').click(function () {
-                if (conn == null) {
-                    connect();
-                } else {
-                    disconnect();
-                }
-                update_ui();
-                return false;
-            });
-            $('#send').click(function () {
-                var text = $('#text').val();
-                log('Sending: ' + text);
-                conn.send(text);
-                $('#text').val('').focus();
-                return false;
-            });
-            $('#scroll').click(function () {
-                log('Sending scroll message');
-                conn.send(JSON.stringify({kind: "Scroll", x: 10, y: 20}));
-                return false;
-            });
-            $('#text').keyup(function (e) {
-                if (e.keyCode === 13) {
-                    $('#send').click();
-                    return false;
-                }
-            });
-            connect();
-        });
-    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link href="https://unpkg.com/tailwindcss@^1.0/dist/tailwind.min.css" rel="stylesheet">
+    <title>Document</title>
 </head>
 <body>
-<h3>Chat!</h3>
-<div>
-    <div>
-        <button id="scroll">Scroll</button>
-    </div>
-    <button id="connect">Connect</button>&nbsp;|&nbsp;Status:
-    <span id="status">disconnected</span>
-</div>
-<div id="log"
-     style="width:20em;height:15em;overflow:auto;border:1px solid black">
-</div>
-<form id="chatform" onsubmit="return false;">
-    <input id="text" type="text"/> <input id="send" type="button" value="Send"/>
-</form>
+    <h1>Hi there!</h1>
 </body>
 </html>

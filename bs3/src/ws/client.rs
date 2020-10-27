@@ -13,8 +13,8 @@ pub enum ClientMsg {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ScrollMsg {
-    pub x: isize,
-    pub y: isize,
+    pub x: f64,
+    pub y: f64,
 }
 
 #[test]
