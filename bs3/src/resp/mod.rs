@@ -4,20 +4,37 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
-use actix_web::body::{BodySize, MessageBody, ResponseBody};
-use actix_web::web::{Bytes, BytesMut};
-use actix_web::{dev::ServiceRequest, dev::ServiceResponse, web, Error, HttpRequest};
+use actix_web::{
+    body::{BodySize, MessageBody, ResponseBody},
+    dev::{RequestHead, ResponseHead, ServiceRequest, ServiceResponse},
+    web::{self, Bytes, BytesMut},
+    Error, HttpRequest,
+};
 use bytes::Buf;
 use futures::future::{ok, Ready};
 
-use actix_web::dev::{RequestHead, ResponseHead};
-
+///
+/// Response Modifications
+///
+/// Allow easy string-manipulation of text-based HTTP
+/// Response bodies
+///
 pub trait RespMod {
+    ///
+    /// Name to be used in debug/display situations
+    ///
     fn name(&self) -> String;
+    ///
+    /// Gives access to the ENTIRE buffered response body
+    ///
     fn process_str(&self, resp: String) -> String {
         resp
     }
-    fn guard(&self, req_head: &RequestHead, _res_head: &ResponseHead) -> bool;
+    ///
+    /// To prevent buffering/modifications on all requests,
+    /// you need to implement this guard
+    ///
+    fn guard(&self, req_head: &RequestHead, res_head: &ResponseHead) -> bool;
 }
 
 pub trait RespModDataTrait {
