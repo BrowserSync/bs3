@@ -11,8 +11,8 @@ use crate::{
 use bytes::Bytes;
 use futures::StreamExt;
 
-use crate::fs::RegisterFs;
 use crate::cli::Args;
+use crate::fs::RegisterFs;
 
 use std::sync::Arc;
 
@@ -66,7 +66,7 @@ pub async fn main(args: impl Iterator<Item = String>) -> std::io::Result<()> {
         let mods = RespModData {
             items: vec![Box::new(Script), Box::new(Css)],
         };
-        App::new()
+        let mut app = App::new()
             .data(ws_server.clone())
             .data(mods)
             .data(served_addr.clone())
@@ -76,8 +76,18 @@ pub async fn main(args: impl Iterator<Item = String>) -> std::io::Result<()> {
             .service(Files::new(
                 "/__bs3/client",
                 "/Users/shakyshane/Sites/bs3/bs3_client/dist",
-            ))
-            .service(Files::new("/", args.paths.get(0).expect("at least")).index_file("index.html"))
+            ));
+
+        let index = args
+            .index
+            .as_ref()
+            .map(|s| s.to_owned())
+            .unwrap_or_else(|| String::from("index.html"));
+        for ref pb in &args.paths {
+            app = app.service(Files::new("/", pb).index_file(&index));
+        }
+
+        app
     })
     .bind("127.0.0.1:8080")?
     .run()

@@ -4,16 +4,16 @@ use structopt::StructOpt;
 #[derive(StructOpt, Clone, Debug, Eq, PartialEq)]
 pub struct Args {
     #[structopt(long = "index")]
-    pub index: Option<PathBuf>,
+    pub index: Option<String>,
     #[structopt(parse(from_os_str))]
-    pub paths: Vec<PathBuf>
+    pub paths: Vec<PathBuf>,
 }
 
 #[test]
 fn test_parse_args_with_index() {
     let args = Args::from_iter(vec!["prog", "--index", "index.htm", "."]);
     let expected = Args {
-        index: Some(PathBuf::from("index.htm")),
+        index: Some(String::from("index.htm")),
         paths: vec![PathBuf::from(".")],
     };
     assert_eq!(expected, args);

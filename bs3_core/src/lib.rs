@@ -1,4 +1,6 @@
 #[cfg(not(target_arch = "wasm32"))]
+pub mod cli;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod client;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod fs;
@@ -8,8 +10,6 @@ pub mod resp;
 pub mod start;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod ws;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod cli;
 
 #[cfg(target_arch = "wasm32")]
 pub mod ws;
