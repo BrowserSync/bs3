@@ -3,7 +3,6 @@ use actix::Context;
 use notify::{watcher, DebouncedEvent, FsEventWatcher, RecursiveMode, Watcher};
 use std::path::PathBuf;
 
-use bs3_files::served::ServedFile;
 use crossbeam_channel;
 
 use crossbeam_channel::unbounded;
@@ -14,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 
 use std::sync::mpsc::channel;
 
+use crate::ws::client::{FsNotify, ServedFile};
 use std::time::Duration;
 
 pub struct FsWatcher {
@@ -95,18 +95,6 @@ impl Handler<RegisterFs> for FsWatcher {
     }
 }
 
-#[derive(Message, Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[rtype(result = "()")]
-pub struct FsNotify {
-    pub item: ServedFile,
-}
-
-impl FsNotify {
-    pub fn new(item: impl Into<ServedFile>) -> Self {
-        Self { item: item.into() }
-    }
-}
-
 #[derive(Message, Debug, Clone)]
 #[rtype(result = "()")]
 struct FsNotifyAll {
@@ -134,25 +122,43 @@ impl Handler<FsNotifyAll> for FsWatcher {
     }
 }
 
-impl Handler<ServedFile> for FsWatcher {
+///
+/// Convert the foreign type into one that resides in this crate
+///
+impl From<bs3_files::served::ServedFile> for ServedFile {
+    fn from(served: bs3_files::served::ServedFile) -> Self {
+        Self {
+            web_path: served.web_path.clone(),
+            path: served.path.clone(),
+            referer: served.referer.clone(),
+        }
+    }
+}
+
+impl Handler<bs3_files::served::ServedFile> for FsWatcher {
     type Result = ();
 
-    fn handle(&mut self, msg: ServedFile, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(
+        &mut self,
+        msg: bs3_files::served::ServedFile,
+        _ctx: &mut Context<Self>,
+    ) -> Self::Result {
         // log::debug!("ServedFile = {:#?}", msg);
         if self.watched.contains(&msg.path) {
             log::trace!("!! skipping, already watching: {}", msg.path.display());
             return ();
         }
-        self.items.insert(msg.path.clone(), msg.clone());
+        let clone: ServedFile = msg.into();
+        self.items.insert(clone.path.clone(), clone.clone());
         if let Some(watcher) = self.watcher.as_mut() {
-            log::debug!("+++ adding item to watch {}", msg.path.display());
-            let result = watcher.watch(&msg.path, RecursiveMode::NonRecursive);
+            log::debug!("+++ adding item to watch {}", clone.path.display());
+            let result = watcher.watch(&clone.path, RecursiveMode::NonRecursive);
             match result {
                 Ok(..) => {
-                    self.watched.insert(msg.path);
+                    self.watched.insert(clone.path);
                 }
                 Err(e) => {
-                    log::error!("Could not watch the path {}", msg.path.display());
+                    log::error!("Could not watch the path {}", clone.path.display());
                     log::error!(" ^^ {}", e);
                 }
             }

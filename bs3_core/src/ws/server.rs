@@ -1,7 +1,6 @@
-use crate::fs::FsNotify;
 use actix::prelude::*;
 
-use crate::ws::client::ClientMsg;
+use crate::ws::client::{ClientMsg, FsNotify};
 use rand::{self, rngs::ThreadRng, Rng};
 use std::collections::{HashMap, HashSet};
 
