@@ -12,6 +12,8 @@ use bytes::Bytes;
 use futures::StreamExt;
 
 use crate::fs::RegisterFs;
+use crate::cli::Args;
+
 use std::sync::Arc;
 
 async fn chunked_response() -> HttpResponse {
@@ -36,8 +38,9 @@ async fn chunked_response() -> HttpResponse {
         .streaming(stream)
 }
 
-#[actix_web::main]
-pub async fn main() -> std::io::Result<()> {
+pub async fn main(args: impl Iterator<Item = String>) -> std::io::Result<()> {
+    use structopt::StructOpt;
+    let args: Args = Args::from_iter(args);
     // std::env::set_var("RUST_LOG", "actix_web=info,bs3=debug,trace");
     // std::env::set_var("RUST_LOG", "bs3=debug,trace");
     env_logger::init();
@@ -74,7 +77,7 @@ pub async fn main() -> std::io::Result<()> {
                 "/__bs3/client",
                 "/Users/shakyshane/Sites/bs3/bs3_client/dist",
             ))
-            .service(Files::new("/", "./fixtures").index_file("index.html"))
+            .service(Files::new("/", args.paths.get(0).expect("at least")).index_file("index.html"))
     })
     .bind("127.0.0.1:8080")?
     .run()

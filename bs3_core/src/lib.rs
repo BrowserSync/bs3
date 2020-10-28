@@ -8,16 +8,14 @@ pub mod resp;
 pub mod start;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod ws;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod cli;
 
 #[cfg(target_arch = "wasm32")]
 pub mod ws;
+
 #[cfg(target_arch = "wasm32")]
 pub use ws::client::*;
 
 #[cfg(target_arch = "wasm32")]
 pub fn main() {}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn main() -> std::io::Result<()> {
-    start::main()
-}

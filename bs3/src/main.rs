@@ -1,9 +1,6 @@
-fn main() {
-    std::process::exit(match bs3_core::start::main() {
-        Ok(_) => 0,
-        Err(err) => {
-            eprintln!("error: {:?}", err);
-            1
-        }
-    });
+#[actix_web::main]
+async fn main() {
+    let args = std::env::args().collect::<Vec<String>>();
+    let fut = bs3_core::start::main(args.into_iter());
+    fut.await;
 }
