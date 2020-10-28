@@ -27,7 +27,7 @@ impl actix::Message for ServedFile {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, TypescriptDefinition)]
-#[serde(tag = "kind")]
+#[serde(tag = "kind", content = "payload")]
 pub enum ClientMsg {
     Connect,
     Disconnect,

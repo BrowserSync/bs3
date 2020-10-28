@@ -5,8 +5,8 @@ export type ServedFile = { path: string; web_path: string; referer: string | nul
 export type ClientMsg = 
  | { kind: "Connect" } 
  | { kind: "Disconnect" } 
- | { kind: "Scroll"; fields: ScrollMsg } 
- | { kind: "FsNotify"; fields: FsNotify };
+ | { kind: "Scroll"; payload: ScrollMsg } 
+ | { kind: "FsNotify"; payload: FsNotify };
 
 export type FsNotify = { item: ServedFile };
 

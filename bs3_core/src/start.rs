@@ -70,9 +70,18 @@ pub async fn main() -> std::io::Result<()> {
             .wrap(resp::RespModMiddleware)
             .service(web::resource("/__bs3/ws/").to(ws_route))
             .service(web::resource("/chunked").to(chunked_response))
+            .service(Files::new(
+                "/__bs3/client",
+                "/Users/shakyshane/Sites/bs3/bs3_client/dist",
+            ))
             .service(Files::new("/", "./fixtures").index_file("index.html"))
     })
     .bind("127.0.0.1:8080")?
     .run()
     .await
 }
+
+// #[get("/__bs3/client.js")]
+// async fn serve_bs_client() -> actix_web::Result<NamedFile> {
+//     Ok(NamedFile::open("/Users/shakyshane/Sites/bs3/bs3_client/dist/index.js")?)
+// }
