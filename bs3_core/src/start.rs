@@ -11,38 +11,14 @@ use crate::{
 use bytes::Bytes;
 use futures::StreamExt;
 
-use crate::cli::Args;
 use crate::fs::RegisterFs;
+use crate::browser_sync::BrowserSync;
+use crate::serve_static::{ServeStaticConfig, ServeStatic};
 
 use std::sync::Arc;
 
-async fn chunked_response() -> HttpResponse {
-    let bytes = vec![
-        "<!doctype html>
-        <html lang='en'>
-        <head>",
-        "<meta charset='UTF-8'>
-        <meta name='viewport' content='width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0'>
-        <meta http-equiv='X-UA-Compatible' content='ie=edge'>
-        <title>Document</title>
-        </head>
-        <body>
-          <h1>Chunked</h1>
-          <script src='app.js'></script>
-        </body>
-        </html>"
-    ];
-    let stream = futures::stream::iter(bytes).map(|str| Ok(Bytes::from(str)) as Result<Bytes, ()>);
-    HttpResponse::build(StatusCode::OK)
-        .content_type("text/html; charset=utf-8")
-        .streaming(stream)
-}
+pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
 
-pub async fn main(args: impl Iterator<Item = String>) -> std::io::Result<()> {
-    use structopt::StructOpt;
-    let args: Args = Args::from_iter(args);
-    // std::env::set_var("RUST_LOG", "actix_web=info,bs3=debug,trace");
-    // std::env::set_var("RUST_LOG", "bs3=debug,trace");
     env_logger::init();
 
     let ws_server = WsServer::default().start();
@@ -78,14 +54,28 @@ pub async fn main(args: impl Iterator<Item = String>) -> std::io::Result<()> {
                 "/Users/shakyshane/Sites/bs3/bs3_client/dist",
             ));
 
-        let index = args
+        let index = browser_sync.config
             .index
             .as_ref()
             .map(|s| s.to_owned())
             .unwrap_or_else(|| String::from("index.html"));
-        for ref pb in &args.paths {
-            app = app.service(Files::new("/", pb).index_file(&index));
+
+        println!("{:?}", browser_sync.config.serve_static_config());
+        for ss in &browser_sync.config.serve_static_config() {
+            match ss {
+                ServeStaticConfig::DirOnly(pb) => {
+                    app = app.service(Files::new("/", &pb).index_file(&index));
+                },
+                ServeStaticConfig::Multi { routes, dir } => {
+                    for route in routes {
+                        if let Some(as_str) = route.to_str() {
+                            app = app.service(Files::new(as_str, &dir).index_file(&index));
+                        }
+                    }
+                }
+            };
         }
+
 
         app
     })
@@ -94,7 +84,24 @@ pub async fn main(args: impl Iterator<Item = String>) -> std::io::Result<()> {
     .await
 }
 
-// #[get("/__bs3/client.js")]
-// async fn serve_bs_client() -> actix_web::Result<NamedFile> {
-//     Ok(NamedFile::open("/Users/shakyshane/Sites/bs3/bs3_client/dist/index.js")?)
-// }
+async fn chunked_response() -> HttpResponse {
+    let bytes = vec![
+        "<!doctype html>
+        <html lang='en'>
+        <head>",
+        "<meta charset='UTF-8'>
+        <meta name='viewport' content='width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0'>
+        <meta http-equiv='X-UA-Compatible' content='ie=edge'>
+        <title>Document</title>
+        </head>
+        <body>
+          <h1>Chunked</h1>
+          <script src='app.js'></script>
+        </body>
+        </html>"
+    ];
+    let stream = futures::stream::iter(bytes).map(|str| Ok(Bytes::from(str)) as Result<Bytes, ()>);
+    HttpResponse::build(StatusCode::OK)
+        .content_type("text/html; charset=utf-8")
+        .streaming(stream)
+}

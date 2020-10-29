@@ -10,9 +10,14 @@ pub mod resp;
 pub mod start;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod ws;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod config;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod browser_sync;
 
 #[cfg(target_arch = "wasm32")]
 pub mod ws;
+mod serve_static;
 
 #[cfg(target_arch = "wasm32")]
 pub use ws::client::*;
