@@ -1,13 +1,13 @@
 use std::path::PathBuf;
 use structopt::StructOpt;
 use serde::{Serialize, Deserialize};
-use crate::serve_static::{ServeStatic, ServeStaticConfig};
+use crate::serve_static::{ServeStatic, ServeStaticConfig, Multi};
 use crate::browser_sync::BrowserSync;
 
 #[derive(Default, StructOpt, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Config {
-    #[structopt(long = "serve-static", short = "ss")]
     #[serde(rename = "serveStatic")]
+    #[structopt(long = "serve-static", short = "ss")]
     pub serve_static: Option<Vec<ServeStaticConfig>>,
     #[structopt(long = "index")]
     pub index: Option<String>,
@@ -24,6 +24,24 @@ impl ServeStatic for Config {
         }
         output.extend(self.serve_static.clone().unwrap_or(vec![]));
         output
+    }
+    fn dir_only(&self) -> Vec<PathBuf> {
+        self.serve_static_config()
+            .into_iter()
+            .filter_map(|ss| match ss {
+                ServeStaticConfig::DirOnly(pb) => Some(pb),
+                _ => None,
+            })
+            .collect()
+    }
+    fn multi_only(&self) -> Vec<Multi> {
+        self.serve_static_config()
+            .into_iter()
+            .filter_map(|ss| match ss {
+                ServeStaticConfig::Multi(multi) => Some(multi),
+                _ => None,
+            })
+            .collect()
     }
 }
 
@@ -43,7 +61,17 @@ fn test_deserialize() -> std::io::Result<()> {
     "#;
     let config = serde_json::from_str::<Config>(input)?;
     let ss = config.serve_static_config();
-    assert_eq!(ss[0], ServeStaticConfig::from_dir_only("."));
+    assert_eq!(
+        vec![
+            ServeStaticConfig::from_dir_only("."),
+            ServeStaticConfig::Multi(Multi{
+                dir: PathBuf::from("node_modules"),
+                routes: vec![PathBuf::from("/node_modules"), PathBuf::from("react")]
+            }),
+            ServeStaticConfig::from_dir_only("static"),
+        ],
+        ss
+    );
     Ok(())
 }
 
@@ -57,6 +85,24 @@ fn test_from_args() -> anyhow::Result<()> {
         vec![
             ServeStaticConfig::from_dir_only("."),
             ServeStaticConfig::from_dir_only("static"),
+        ],
+        ss
+    );
+    Ok(())
+}
+
+#[test]
+fn test_from_args_with_shorthard() -> anyhow::Result<()> {
+    let args = "prog . --serve-static node_modules:fixtures/node_modules";
+    let bs = BrowserSync::try_from_args(args.split(" "))?;
+    let ss = bs.config.serve_static_config();
+    assert_eq!(
+        vec![
+            ServeStaticConfig::from_dir_only("."),
+            ServeStaticConfig::Multi(Multi{
+                dir: PathBuf::from("fixtures/node_modules"),
+                routes: vec![PathBuf::from("node_modules")]
+            }),
         ],
         ss
     );

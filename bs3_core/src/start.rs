@@ -60,20 +60,18 @@ pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
             .map(|s| s.to_owned())
             .unwrap_or_else(|| String::from("index.html"));
 
-        println!("{:?}", browser_sync.config.serve_static_config());
-        for ss in &browser_sync.config.serve_static_config() {
-            match ss {
-                ServeStaticConfig::DirOnly(pb) => {
-                    app = app.service(Files::new("/", &pb).index_file(&index));
-                },
-                ServeStaticConfig::Multi { routes, dir } => {
-                    for route in routes {
-                        if let Some(as_str) = route.to_str() {
-                            app = app.service(Files::new(as_str, &dir).index_file(&index));
-                        }
-                    }
+        for multi in &browser_sync.config.multi_only() {
+            for route in &multi.routes {
+                if let Some(as_str) = route.to_str() {
+                    log::debug!("++ multi `{}` : `{}` ", as_str, multi.dir.display());
+                    app = app.service(Files::new(as_str, &multi.dir));
                 }
-            };
+            }
+        }
+
+        for ss in &browser_sync.config.dir_only() {
+            log::debug!("++ dir only `/` : `{}` ", ss.display());
+            app = app.service(Files::new("/", &ss).index_file(&index));
         }
 
 
