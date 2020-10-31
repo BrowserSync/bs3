@@ -11,14 +11,13 @@ use crate::{
 use bytes::Bytes;
 use futures::StreamExt;
 
-use crate::fs::RegisterFs;
 use crate::browser_sync::BrowserSync;
-use crate::serve_static::{ServeStaticConfig, ServeStatic};
+use crate::fs::RegisterFs;
+use crate::serve_static::ServeStatic;
 
 use std::sync::Arc;
 
 pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
-
     env_logger::init();
 
     let ws_server = WsServer::default().start();
@@ -54,7 +53,8 @@ pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
                 "/Users/shakyshane/Sites/bs3/bs3_client/dist",
             ));
 
-        let index = browser_sync.config
+        let index = browser_sync
+            .config
             .index
             .as_ref()
             .map(|s| s.to_owned())
@@ -73,7 +73,6 @@ pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
             log::debug!("++ dir only `/` : `{}` ", ss.display());
             app = app.service(Files::new("/", &ss).index_file(&index));
         }
-
 
         app
     })

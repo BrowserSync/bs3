@@ -3,7 +3,7 @@ use structopt::StructOpt;
 
 #[derive(Debug, Clone, Default)]
 pub struct BrowserSync {
-    pub config: Config
+    pub config: Config,
 }
 
 impl BrowserSync {
@@ -20,6 +20,5 @@ impl BrowserSync {
 #[test]
 fn test_try() {
     let args = vec!["prog", ".", "hello"].into_iter();
-    let bs = BrowserSync::try_from_args(args);
-    dbg!(bs);
+    let _ = BrowserSync::try_from_args(args).expect("unpack");
 }

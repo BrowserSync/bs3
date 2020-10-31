@@ -1,2 +1,2 @@
 [workspace]
-members = ["bs3", "bs3_core", "bs3_files"]
+members = ["bs3", "bs3_core", "actix_multi", "bs3_files"]
