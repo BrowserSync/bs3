@@ -70,7 +70,7 @@ mod tests {
                 ServeStaticConfig::from_dir_only("."),
                 ServeStaticConfig::Multi(Multi {
                     dir: PathBuf::from("node_modules"),
-                    routes: vec![PathBuf::from("/node_modules"), PathBuf::from("react")]
+                    routes: vec![String::from("/node_modules"), String::from("react")]
                 }),
                 ServeStaticConfig::from_dir_only("static"),
             ],
@@ -104,7 +104,7 @@ mod tests {
                 ServeStaticConfig::from_dir_only("."),
                 ServeStaticConfig::Multi(Multi {
                     dir: PathBuf::from("fixtures/node_modules"),
-                    routes: vec![PathBuf::from("node_modules")]
+                    routes: vec![String::from("node_modules")]
                 }),
             ],
             ss

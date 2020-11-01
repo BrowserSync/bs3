@@ -1,7 +1,7 @@
 use actix::Actor;
 use actix_web::{http::StatusCode, web, App, HttpResponse, HttpServer};
 use bs3_files::served::{Register, Served, ServedAddr};
-use bs3_files::Files;
+use bs3_files::{Files, FilesService};
 
 use crate::{
     client::css::Css, client::script::Script, fs::FsWatcher, resp, resp::RespModData,
@@ -15,8 +15,9 @@ use crate::browser_sync::BrowserSync;
 use crate::fs::RegisterFs;
 use crate::serve_static::{ServeStatic, ServeStaticConfig};
 
+use crate::routes::not_found::NotFound;
+use actix_multi::service::MultiServiceTrait;
 use std::sync::Arc;
-use crate::serve_static::ServeStaticConfig::Multi;
 
 pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
     env_logger::init();
@@ -38,7 +39,11 @@ pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
         addr: ws_server.clone().recipient(),
     });
 
+    let ss_config = browser_sync.config.serve_static_config();
+    let ss_config_arc = Arc::new(ss_config);
+
     HttpServer::new(move || {
+        let ss_config_arc = ss_config_arc.clone();
         let mods = RespModData {
             items: vec![Box::new(Script), Box::new(Css)],
         };
@@ -46,6 +51,7 @@ pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
             .data(ws_server.clone())
             .data(mods)
             .data(served_addr.clone())
+            .data(ss_config_arc.clone())
             .wrap(resp::RespModMiddleware)
             .service(web::resource("/__bs3/ws/").to(ws_route))
             .service(web::resource("/chunked").to(chunked_response))
@@ -61,32 +67,37 @@ pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
             .map(|s| s.to_owned())
             .unwrap_or_else(|| String::from("index.html"));
 
-        let catch_services = browser_sync.config.serve_static_config()
-            .iter()
-            .map(|item| match item {
-                ServeStaticConfig::DirOnly(dir) => Files::new("/", dir),
-                ServeStaticConfig::Multi(Multi { routes, dir }) => {
+        app = app.service(actix_multi::service::Multi::new(move || {
+            let fs_services: Vec<FilesService> =
+                ss_config_arc.clone().iter().fold(vec![], |mut acc, item| {
+                    match item {
+                        ServeStaticConfig::DirOnly(dir) => {
+                            acc.push(Files::new("/", dir).index_file(&index).to_service());
+                        }
+                        ServeStaticConfig::Multi(multi) => {
+                            for r in &multi.routes {
+                                acc.push(
+                                    Files::new(&r, multi.dir.clone())
+                                        .index_file(&index)
+                                        .to_service(),
+                                );
+                            }
+                        }
+                    };
+                    acc
+                });
 
-                    Files::new(routes.get(0).expect("guarded"), dir)
-                },
-            })
-            .collect::<Vec<Files>>();
+            let mut next: Vec<Box<dyn MultiServiceTrait>> = vec![];
 
-        for multi in &browser_sync.config.serve_static_config() {
+            for s in fs_services {
+                next.push(Box::new(s))
+            }
 
-        }
-        //     for route in &multi.routes {
-        //         if let Some(as_str) = route.to_str() {
-        //             log::debug!("++ multi `{}` : `{}` ", as_str, multi.dir.display());
-        //             app = app.service(Files::new(as_str, &multi.dir));
-        //         }
-        //     }
-        // }
-        //
-        // for ss in &browser_sync.config.dir_only() {
-        //     log::debug!("++ dir only `/` : `{}` ", ss.display());
-        //     app = app.service(Files::new("/", &ss).index_file(&index));
-        // }
+            // add the not Found page
+            next.push(Box::new(NotFound));
+
+            next
+        }));
 
         app
     })

@@ -203,6 +203,7 @@ impl Files {
     pub fn to_service(&self) -> FilesService {
         FilesService {
             directory: self.directory.clone(),
+            route: self.path.clone(),
             index: self.index.clone(),
             show_index: self.show_index,
             redirect_to_slash: self.redirect_to_slash,
@@ -243,6 +244,7 @@ impl ServiceFactory for Files {
     fn new_service(&self, _: ()) -> Self::Future {
         let mut srv = FilesService {
             directory: self.directory.clone(),
+            route: self.path.clone(),
             index: self.index.clone(),
             show_index: self.show_index,
             redirect_to_slash: self.redirect_to_slash,

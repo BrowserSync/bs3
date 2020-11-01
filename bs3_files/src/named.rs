@@ -25,7 +25,7 @@ use crate::ChunkedReadFile;
 use crate::{encoding::equiv_utf8_text, range::HttpRange};
 
 bitflags! {
-    pub(crate) struct Flags: u8 {
+    pub struct Flags: u8 {
         const ETAG =                0b0000_0001;
         const LAST_MD =             0b0000_0010;
         const CONTENT_DISPOSITION = 0b0000_0100;
@@ -42,15 +42,15 @@ impl Default for Flags {
 /// A file with an associated name.
 #[derive(Debug)]
 pub struct NamedFile {
-    path: PathBuf,
-    file: File,
-    modified: Option<SystemTime>,
-    pub(crate) md: Metadata,
-    pub(crate) flags: Flags,
-    pub(crate) status_code: StatusCode,
-    pub(crate) content_type: mime::Mime,
-    pub(crate) content_disposition: header::ContentDisposition,
-    pub(crate) encoding: Option<ContentEncoding>,
+    pub path: PathBuf,
+    pub file: File,
+    pub modified: Option<SystemTime>,
+    pub md: Metadata,
+    pub flags: Flags,
+    pub status_code: StatusCode,
+    pub content_type: mime::Mime,
+    pub content_disposition: header::ContentDisposition,
+    pub encoding: Option<ContentEncoding>,
 }
 
 impl NamedFile {

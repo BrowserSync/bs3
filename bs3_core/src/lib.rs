@@ -19,6 +19,9 @@ mod serve_static;
 #[cfg(target_arch = "wasm32")]
 pub mod ws;
 
+#[cfg(not(target_arch = "wasm32"))]
+mod routes;
+
 #[cfg(target_arch = "wasm32")]
 pub use ws::client::*;
 

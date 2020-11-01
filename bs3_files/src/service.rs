@@ -24,6 +24,7 @@ use std::sync::Arc;
 
 /// Assembled file serving service.
 pub struct FilesService {
+    pub route: String,
     pub directory: PathBuf,
     pub index: Option<String>,
     pub show_index: bool,
@@ -37,9 +38,22 @@ pub struct FilesService {
 
 impl actix_multi::service::MultiServiceTrait for FilesService {
     fn check_multi(&self, req: &ServiceRequest) -> bool {
-        req.uri().path_and_query()
-            .map(|pq| self.route.starts_with(p.path()))
-            .unwrap_or(false)
+        let res = req
+            .uri()
+            .path_and_query()
+            .map(|pq| {
+                let matches = pq.path().starts_with(&self.route);
+                let exists = file_path(pq.path(), &self.directory);
+                log::trace!(
+                    "route=[{}], dir=[{}], exists=[{:?}]",
+                    self.route,
+                    self.directory.display(),
+                    exists
+                );
+                matches && exists.is_some()
+            })
+            .unwrap_or(false);
+        res
     }
 }
 
@@ -172,6 +186,15 @@ impl Service for FilesService {
             }
         }
     }
+}
+
+fn file_path(path: &str, dir: &PathBuf) -> Option<PathBuf> {
+    if let Ok(real_path) = path.parse::<PathBufWrap>() {
+        if let Ok(pb) = dir.join(&real_path).canonicalize() {
+            return Some(pb);
+        }
+    }
+    None
 }
 
 fn record(req: &ServiceRequest, nf: &NamedFile) {
