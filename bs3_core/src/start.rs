@@ -13,9 +13,10 @@ use futures::StreamExt;
 
 use crate::browser_sync::BrowserSync;
 use crate::fs::RegisterFs;
-use crate::serve_static::ServeStatic;
+use crate::serve_static::{ServeStatic, ServeStaticConfig};
 
 use std::sync::Arc;
+use crate::serve_static::ServeStaticConfig::Multi;
 
 pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
     env_logger::init();
@@ -60,19 +61,32 @@ pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
             .map(|s| s.to_owned())
             .unwrap_or_else(|| String::from("index.html"));
 
-        for multi in &browser_sync.config.multi_only() {
-            for route in &multi.routes {
-                if let Some(as_str) = route.to_str() {
-                    log::debug!("++ multi `{}` : `{}` ", as_str, multi.dir.display());
-                    app = app.service(Files::new(as_str, &multi.dir));
-                }
-            }
-        }
+        let catch_services = browser_sync.config.serve_static_config()
+            .iter()
+            .map(|item| match item {
+                ServeStaticConfig::DirOnly(dir) => Files::new("/", dir),
+                ServeStaticConfig::Multi(Multi { routes, dir }) => {
 
-        for ss in &browser_sync.config.dir_only() {
-            log::debug!("++ dir only `/` : `{}` ", ss.display());
-            app = app.service(Files::new("/", &ss).index_file(&index));
+                    Files::new(routes.get(0).expect("guarded"), dir)
+                },
+            })
+            .collect::<Vec<Files>>();
+
+        for multi in &browser_sync.config.serve_static_config() {
+
         }
+        //     for route in &multi.routes {
+        //         if let Some(as_str) = route.to_str() {
+        //             log::debug!("++ multi `{}` : `{}` ", as_str, multi.dir.display());
+        //             app = app.service(Files::new(as_str, &multi.dir));
+        //         }
+        //     }
+        // }
+        //
+        // for ss in &browser_sync.config.dir_only() {
+        //     log::debug!("++ dir only `/` : `{}` ", ss.display());
+        //     app = app.service(Files::new("/", &ss).index_file(&index));
+        // }
 
         app
     })

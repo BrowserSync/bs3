@@ -24,15 +24,23 @@ use std::sync::Arc;
 
 /// Assembled file serving service.
 pub struct FilesService {
-    pub(crate) directory: PathBuf,
-    pub(crate) index: Option<String>,
-    pub(crate) show_index: bool,
-    pub(crate) redirect_to_slash: bool,
-    pub(crate) default: Option<HttpService>,
-    pub(crate) renderer: Rc<DirectoryRenderer>,
-    pub(crate) mime_override: Option<Rc<MimeOverride>>,
-    pub(crate) file_flags: named::Flags,
-    pub(crate) guards: Option<Rc<dyn Guard>>,
+    pub directory: PathBuf,
+    pub index: Option<String>,
+    pub show_index: bool,
+    pub redirect_to_slash: bool,
+    pub default: Option<HttpService>,
+    pub renderer: Rc<DirectoryRenderer>,
+    pub mime_override: Option<Rc<MimeOverride>>,
+    pub file_flags: named::Flags,
+    pub guards: Option<Rc<dyn Guard>>,
+}
+
+impl actix_multi::service::MultiServiceTrait for FilesService {
+    fn check_multi(&self, req: &ServiceRequest) -> bool {
+        req.uri().path_and_query()
+            .map(|pq| self.route.starts_with(p.path()))
+            .unwrap_or(false)
+    }
 }
 
 type FilesServiceFuture = Either<

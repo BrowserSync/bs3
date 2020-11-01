@@ -199,6 +199,20 @@ impl Files {
 
         self
     }
+
+    pub fn to_service(&self) -> FilesService {
+        FilesService {
+            directory: self.directory.clone(),
+            index: self.index.clone(),
+            show_index: self.show_index,
+            redirect_to_slash: self.redirect_to_slash,
+            default: None,
+            renderer: self.renderer.clone(),
+            mime_override: self.mime_override.clone(),
+            file_flags: self.file_flags,
+            guards: self.guards.clone(),
+        }
+    }
 }
 
 impl HttpServiceFactory for Files {

@@ -20,7 +20,7 @@ pub enum ServeStaticConfig {
 
 #[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Multi {
-    pub routes: Vec<PathBuf>,
+    pub routes: Vec<String>,
     #[serde(deserialize_with = "deserialize_dir")]
     pub dir: PathBuf,
 }

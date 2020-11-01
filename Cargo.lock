@@ -776,6 +776,7 @@ dependencies = [
  "actix-rt",
  "actix-service",
  "actix-web",
+ "actix_multi",
  "bitflags",
  "bytes",
  "derive_more",
