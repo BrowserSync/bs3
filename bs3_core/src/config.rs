@@ -1,8 +1,8 @@
+use crate::proxy::{Proxy, ProxyTarget};
 use crate::serve_static::{Multi, ServeStatic, ServeStaticConfig};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use structopt::StructOpt;
-use crate::proxy::{ProxyTarget, Proxy};
 
 #[derive(Default, StructOpt, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Config {
@@ -11,7 +11,7 @@ pub struct Config {
     pub serve_static: Option<Vec<ServeStaticConfig>>,
     #[structopt(long = "index")]
     pub index: Option<String>,
-    #[structopt(long = "proxy", short="p")]
+    #[structopt(long = "proxy", short = "p")]
     pub proxies: Vec<ProxyTarget>,
     #[structopt(parse(from_os_str))]
     #[serde(default)]
@@ -49,7 +49,7 @@ impl ServeStatic for Config {
 
 impl Proxy for Config {
     fn proxies(&self) -> Vec<ProxyTarget> {
-        vec![]
+        self.proxies.clone()
     }
 }
 
@@ -129,11 +129,19 @@ mod tests {
         let bs = BrowserSync::try_from_args(args.split(" "))?;
         let proxies = bs.config.proxies();
         assert_eq!(
-            vec![
-                ProxyTarget { target: url::Url::from_str("http://www.example.com")? }
-            ],
+            vec![ProxyTarget {
+                target: url::Url::from_str("http://www.example.com")?
+            }],
             proxies
         );
         Ok(())
+    }
+    #[test]
+    fn test_proxy_from_args_error() {
+        let args = "prog --proxy http:/.example.com";
+        let p = url::Url::parse(args);
+        println!("{}", p.unwrap_err());
+        // let bs = BrowserSync::try_from_args(args.split(" "));
+        // assert!(bs.is_err());
     }
 }

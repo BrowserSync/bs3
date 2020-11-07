@@ -15,11 +15,12 @@ use crate::browser_sync::BrowserSync;
 use crate::fs::RegisterFs;
 use crate::serve_static::{ServeStatic, ServeStaticConfig};
 
+use crate::proxy::Proxy;
 use crate::routes::not_found::NotFound;
 use actix_multi::service::MultiServiceTrait;
 use std::sync::Arc;
-use crate::proxy::ProxyTarget;
-use std::str::FromStr;
+
+use crate::proxy::service::ProxyService;
 
 pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
     env_logger::init();
@@ -44,8 +45,12 @@ pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
     let ss_config = browser_sync.config.serve_static_config();
     let ss_config_arc = Arc::new(ss_config);
 
+    let proxy_config = browser_sync.config.proxies();
+    let proxy_config_arc = Arc::new(proxy_config);
+
     HttpServer::new(move || {
         let ss_config_arc = ss_config_arc.clone();
+        let proxy_config_arc = proxy_config_arc.clone();
         let mods = RespModData {
             items: vec![Box::new(Script), Box::new(Css)],
         };
@@ -95,8 +100,13 @@ pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
                 next.push(Box::new(s))
             }
 
+            proxy_config_arc.iter().for_each(|p| {
+                next.push(Box::new(ProxyService {
+                    targets: vec![p.clone()],
+                }))
+            });
+
             // add the not Found page
-            next.push(Box::new(ProxyTarget::from_str("http://www.example.com").expect("valid")));
             next.push(Box::new(NotFound));
 
             next
