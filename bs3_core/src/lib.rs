@@ -15,15 +15,20 @@ pub mod start;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod ws;
 
-mod serve_static;
-#[cfg(target_arch = "wasm32")]
-pub mod ws;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod serve_static;
 
 #[cfg(not(target_arch = "wasm32"))]
-mod routes;
+pub mod routes;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub mod proxy;
 
 #[cfg(target_arch = "wasm32")]
 pub use ws::client::*;
+#[cfg(target_arch = "wasm32")]
+pub mod ws;
 
 #[cfg(target_arch = "wasm32")]
 pub fn main() {}
+

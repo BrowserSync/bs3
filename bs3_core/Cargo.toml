@@ -35,6 +35,7 @@ typescript-definitions = { git = "https://github.com/onelson/typescript-definiti
 wasm-bindgen = "0.2.68"
 anyhow = "1.0.33"
 thiserror = "1.0.21"
+url = "2.2.0"
 
 [target.'cfg(not(target_arch="wasm32"))'.dev-dependencies]
 actix-rt = "1.1.1"

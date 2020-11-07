@@ -2,6 +2,7 @@ use crate::serve_static::{Multi, ServeStatic, ServeStaticConfig};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use structopt::StructOpt;
+use crate::proxy::{ProxyTarget, Proxy};
 
 #[derive(Default, StructOpt, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Config {
@@ -10,6 +11,8 @@ pub struct Config {
     pub serve_static: Option<Vec<ServeStaticConfig>>,
     #[structopt(long = "index")]
     pub index: Option<String>,
+    #[structopt(long = "proxy", short="p")]
+    pub proxies: Vec<ProxyTarget>,
     #[structopt(parse(from_os_str))]
     #[serde(default)]
     pub trailing_paths: Vec<PathBuf>,
@@ -44,10 +47,18 @@ impl ServeStatic for Config {
     }
 }
 
+impl Proxy for Config {
+    fn proxies(&self) -> Vec<ProxyTarget> {
+        vec![]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::browser_sync::BrowserSync;
+    use crate::proxy::ProxyTarget;
+    use std::str::FromStr;
 
     #[test]
     fn test_deserialize() -> std::io::Result<()> {
@@ -108,6 +119,20 @@ mod tests {
                 }),
             ],
             ss
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_proxy_from_args() -> anyhow::Result<()> {
+        let args = "prog --proxy http://www.example.com";
+        let bs = BrowserSync::try_from_args(args.split(" "))?;
+        let proxies = bs.config.proxies();
+        assert_eq!(
+            vec![
+                ProxyTarget { target: url::Url::from_str("http://www.example.com")? }
+            ],
+            proxies
         );
         Ok(())
     }

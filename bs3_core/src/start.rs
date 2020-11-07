@@ -18,6 +18,8 @@ use crate::serve_static::{ServeStatic, ServeStaticConfig};
 use crate::routes::not_found::NotFound;
 use actix_multi::service::MultiServiceTrait;
 use std::sync::Arc;
+use crate::proxy::ProxyTarget;
+use std::str::FromStr;
 
 pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
     env_logger::init();
@@ -94,6 +96,7 @@ pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
             }
 
             // add the not Found page
+            next.push(Box::new(ProxyTarget::from_str("http://www.example.com").expect("valid")));
             next.push(Box::new(NotFound));
 
             next
