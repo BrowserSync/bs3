@@ -18,6 +18,8 @@ use actix::FinishStream;
 use flate2::read::GzDecoder;
 use std::io;
 use std::io::{Write, Read};
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
 
 ///
 /// Response Modifications
@@ -266,7 +268,6 @@ fn process(
     transforms: Option<&RespModData>,
     indexes: &Vec<usize>,
 ) -> Poll<Option<Result<Bytes, Error>>> {
-    let as_string = decode_writer(bytes.to_vec());
     let to_process = std::str::from_utf8(&bytes);
     match to_process {
         Ok(str) => {
@@ -298,8 +299,16 @@ fn is_ws_req(req: &RequestHead) -> bool {
 }
 
 fn decode_gzip(bytes: Vec<u8>) -> io::Result<String> {
-    let mut d = GzDecoder::new("...".as_bytes());
+    let mut d = GzDecoder::new(&bytes[..]);
     let mut s = String::new();
     d.read_to_string(&mut s).unwrap();
     Ok(s)
 }
+
+fn encode_gzip(input: Vec<u8>) -> io::Result<Vec<u8>> {
+    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
+    e.write_all(&input[..]);
+    e.finish()
+}
+
+
