@@ -4,12 +4,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
-use actix_web::{
-    body::{BodySize, MessageBody, ResponseBody},
-    dev::{RequestHead, ResponseHead, ServiceRequest, ServiceResponse},
-    web::{self, Bytes, BytesMut},
-    Error, HttpRequest,
-};
+use actix_web::{body::{BodySize, MessageBody, ResponseBody}, dev::{RequestHead, ResponseHead, ServiceRequest, ServiceResponse}, web::{self, Bytes, BytesMut}, Error, HttpRequest, HttpResponse};
 use bytes::Buf;
 use futures::future::{ok, Ready};
 use actix_web::dev::Decompress;
@@ -18,6 +13,7 @@ use actix::FinishStream;
 use flate2::read::GzDecoder;
 use std::io;
 use std::io::{Write, Read};
+use futures_util::StreamExt;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 
@@ -80,13 +76,12 @@ impl RespModDataTrait for RespModData {
 
 pub struct RespModMiddleware;
 
-impl<S: 'static, B> Transform<S> for RespModMiddleware
+impl<S: 'static> Transform<S> for RespModMiddleware
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    B: MessageBody + 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse, Error = Error>,
 {
     type Request = ServiceRequest;
-    type Response = ServiceResponse<BodyLogger<B>>;
+    type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
     type Transform = LoggingMiddleware<S>;
@@ -101,164 +96,71 @@ pub struct LoggingMiddleware<S> {
     service: S,
 }
 
-impl<'a, S, B> Service for LoggingMiddleware<S>
+impl<'a, S> Service for LoggingMiddleware<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    B: MessageBody,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse, Error = Error> + 'static,
 {
     type Request = ServiceRequest;
-    type Response = ServiceResponse<BodyLogger<B>>;
+    type Response = ServiceResponse;
     type Error = Error;
-    type Future = WrapperStream<S, B>;
+    type Future = Pin<Box<dyn Future<Output = Result<ServiceResponse, Error>>>>;
 
     fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        WrapperStream {
-            fut: self.service.call(req),
-            _t: PhantomData,
-        }
-    }
-}
+        let uri = req.uri().clone();
+        let srv_v = self.service.call(req);
 
-#[pin_project::pin_project]
-pub struct WrapperStream<S, B>
-where
-    B: MessageBody,
-    S: Service,
-{
-    #[pin]
-    fut: S::Future,
-    _t: PhantomData<(B,)>,
-}
+        Box::pin(async move {
+            let res = srv_v.await;
+            match res {
+                Ok(mut res) => {
+                    let res: ServiceResponse = res;
+                    let req = res.request().clone();
 
-impl<S, B> Future for WrapperStream<S, B>
-where
-    B: MessageBody,
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-{
-    type Output = Result<ServiceResponse<BodyLogger<B>>, Error>;
+                    log::trace!("map_body for {}", req.uri().to_string());
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let res: Result<ServiceResponse<_>, _> = futures::ready!(self.project().fut.poll(cx));
+                    let head = req.head();
+                    let response = res.response();
 
-        Poll::Ready(res.map(|res| {
-            let req = res.request().clone();
-            res.map_body(move |_head, body| {
-                log::trace!("map_body for {}", req.uri().to_string());
-                let head = req.head();
-                let transforms = req
-                    .app_data::<web::Data<RespModData>>()
-                    .map(|t| t.get_ref());
-                let indexes: Vec<usize> = transforms
-                    .map(|trans| trans.indexes(&head, &_head))
-                    .unwrap_or(vec![]);
-                ResponseBody::Body(BodyLogger {
-                    body,
-                    body_accum: BytesMut::new(),
-                    process: !indexes.is_empty(),
-                    indexes,
-                    req,
-                    eof: false,
-                })
-            })
-        }))
-    }
-}
+                    let transforms = req
+                        .app_data::<web::Data<RespModData>>()
+                        .map(|t| t.get_ref());
 
-#[pin_project::pin_project]
-pub struct BodyLogger<B> {
-    #[pin]
-    body: ResponseBody<B>,
-    body_accum: BytesMut,
-    process: bool,
-    indexes: Vec<usize>,
-    req: HttpRequest,
-    eof: bool,
-}
+                    let indexes: Vec<usize> = transforms
+                        .map(|trans| trans.indexes(&head, &response.head()))
+                        .unwrap_or(vec![]);
 
-impl<B: MessageBody> MessageBody for BodyLogger<B> {
-    fn size(&self) -> BodySize {
-        if self.process {
-            BodySize::Stream
-        } else {
-            self.body.size()
-        }
-    }
+                    log::debug!("indexes to process = {:?}", indexes);
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
-        let mut this = self.project();
-        let req: &mut HttpRequest = this.req;
-
-        if is_ws_req(&req.head()) {
-            return this.body.poll_next(cx);
-        }
-
-        let original_body_size = this.body.size().clone();
-        let is_stream = original_body_size == BodySize::Stream;
-
-        loop {
-            let s = this.body.as_mut();
-            return match s.poll_next(cx) {
-                Poll::Ready(Some(Ok(chunk))) => {
-                    log::trace!("chunk size = {:?}", chunk.size());
-                    if !*this.process {
-                        log::trace!("chunk pass-thru");
-                        return Poll::Ready(Some(Ok(chunk)));
-                    }
-                    this.body_accum.extend_from_slice(&chunk);
-                    log::trace!(
-                        "this.body_accum = {:?}, this.body = {:?}",
-                        this.body_accum.size(),
-                        original_body_size
-                    );
-                    if this.body_accum.size() == original_body_size {
-                        log::trace!("SIZE MATCH");
-                        let uri = req.uri().to_string();
-                        let transforms = this
-                            .req
-                            .app_data::<web::Data<RespModData>>()
-                            .map(|t| t.get_ref());
-                        process(this.body_accum.to_bytes(), uri, transforms, &this.indexes)
-                    } else {
-                        if is_stream {
-                            log::trace!("continue since this is a stream");
-                            continue;
-                        } else {
-                            Poll::Pending
-                        }
-                    }
+                    // if !indexes.is_empty() {
+                    //     let mut body = BytesMut::new();
+                    //     let mut stream = res.take_body();
+                    //
+                    //     while let Some(chunk) = stream.next().await {
+                    //         body.extend_from_slice(&chunk?);
+                    //     }
+                    //
+                    //     let decoded = decode_gzip(body.to_vec()).expect("decode");
+                    //     println!("body decoded = |{:?}|", decoded);
+                    //     let encoded = encode_gzip(decoded.into_bytes()).expect("encode");
+                    //     println!("body encoded = |{:?}|", encoded);
+                    //
+                    //
+                    //     // let req = res.request().clone();
+                    //     Ok(res.map_body(|| {
+                    //
+                    //     }))
+                    // } else {
+                        // let req = res.request().clone();
+                    // }
+                    Ok(res)
                 }
-                Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
-                Poll::Ready(None) => {
-                    if *this.eof {
-                        log::trace!("early exit since this.eof = true");
-                        return Poll::Ready(None);
-                    }
-                    if is_stream {
-                        log::debug!(
-                            "original body was a stream, total bytes: {:?}",
-                            this.body_accum.size()
-                        );
-                        *this.eof = true;
-                        let uri = req.uri().to_string();
-                        let transforms = this
-                            .req
-                            .app_data::<web::Data<RespModData>>()
-                            .map(|t| t.get_ref());
-                        process(this.body_accum.to_bytes(), uri, transforms, &this.indexes)
-                    } else {
-                        Poll::Ready(None)
-                    }
-                }
-                Poll::Pending => {
-                    log::trace!("Poll::Pending {:?}", req.uri());
-                    Poll::Pending
-                }
-            };
-        }
+                Err(..) => todo!()
+            }
+        })
     }
 }
 
@@ -289,15 +191,6 @@ fn process(
     }
 }
 
-fn is_ws_req(req: &RequestHead) -> bool {
-    req.uri
-        .clone()
-        .into_parts()
-        .path_and_query
-        .map(|pq| pq.as_str().starts_with("/__bs3/ws"))
-        .unwrap_or(false)
-}
-
 fn decode_gzip(bytes: Vec<u8>) -> io::Result<String> {
     let mut d = GzDecoder::new(&bytes[..]);
     let mut s = String::new();
@@ -310,5 +203,3 @@ fn encode_gzip(input: Vec<u8>) -> io::Result<Vec<u8>> {
     e.write_all(&input[..]);
     e.finish()
 }
-
-
