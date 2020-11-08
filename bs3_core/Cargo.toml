@@ -21,6 +21,7 @@ actix_multi = { path = "../actix_multi", version = "0.1.0" }
 bs3_files = { path = "../bs3_files", version = "0.0.1" }
 actix-service = "1.0.6"
 env_logger = "0.8.1"
+flate2 = "1.0.19"
 log = "0.4.11"
 futures = "0.3.7"
 futures-util = "0.3.7"

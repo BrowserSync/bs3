@@ -21,6 +21,7 @@ use actix_multi::service::MultiServiceTrait;
 use std::sync::Arc;
 
 use crate::proxy::service::ProxyService;
+use actix_web::client::Client;
 
 pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
     env_logger::init();
@@ -56,6 +57,7 @@ pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
         };
         let mut app = App::new()
             .data(ws_server.clone())
+            .data(Client::new())
             .data(mods)
             .data(served_addr.clone())
             .data(ss_config_arc.clone())

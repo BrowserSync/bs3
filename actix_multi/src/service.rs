@@ -5,12 +5,13 @@ use actix_web::{
     HttpResponse,
 };
 use futures::future::{ok, ready, Either, LocalBoxFuture, Ready};
-use futures::FutureExt;
+use futures::{FutureExt, Future};
 use std::task::{Context, Poll};
+use std::pin::Pin;
 
 pub type MultiServiceFuture = Either<
     Ready<Result<ServiceResponse, Error>>,
-    LocalBoxFuture<'static, Result<ServiceResponse, Error>>,
+    Pin<Box<dyn Future<Output = Result<ServiceResponse, Error>>>>,
 >;
 
 pub trait MultiServiceTrait:
