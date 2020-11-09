@@ -5,9 +5,9 @@ use actix_web::{
     HttpResponse,
 };
 use futures::future::{ok, ready, Either, LocalBoxFuture, Ready};
-use futures::{FutureExt, Future};
-use std::task::{Context, Poll};
+use futures::{Future, FutureExt};
 use std::pin::Pin;
+use std::task::{Context, Poll};
 
 pub type MultiServiceFuture = Either<
     Ready<Result<ServiceResponse, Error>>,

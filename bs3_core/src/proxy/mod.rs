@@ -1,5 +1,3 @@
-use actix_service::Service;
-
 use std::str::FromStr;
 
 use serde::{de, Deserialize, Deserializer, Serializer};

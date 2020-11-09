@@ -1,21 +1,26 @@
 use std::future::Future;
-use std::marker::PhantomData;
+
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
-use actix_web::{body::{BodySize, MessageBody, ResponseBody}, dev::{RequestHead, ResponseHead, ServiceRequest, ServiceResponse}, web::{self, Bytes, BytesMut}, Error, HttpRequest, HttpResponse};
-use bytes::Buf;
-use futures::future::{ok, Ready};
-use actix_web::dev::Decompress;
-use actix_web::http::ContentEncoding;
-use actix::FinishStream;
+use actix_web::{
+    body::ResponseBody,
+    dev::{RequestHead, ResponseHead, ServiceRequest, ServiceResponse},
+    web::{self, Bytes, BytesMut},
+    Error,
+};
+
+use actix_web::dev::Body;
+use actix_web::http::header::CONTENT_ENCODING;
+use actix_web::http::{ContentEncoding, HeaderValue};
 use flate2::read::GzDecoder;
-use std::io;
-use std::io::{Write, Read};
-use futures_util::StreamExt;
-use flate2::write::ZlibEncoder;
+use flate2::write::GzEncoder;
 use flate2::Compression;
+use futures::future::{ok, Ready};
+use futures_util::StreamExt;
+use std::io;
+use std::io::{Read, Write};
 
 ///
 /// Response Modifications
@@ -110,66 +115,123 @@ where
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        let uri = req.uri().clone();
+        let _uri = req.uri().clone();
         let srv_v = self.service.call(req);
 
         Box::pin(async move {
             let res = srv_v.await;
             match res {
-                Ok(mut res) => {
-                    let res: ServiceResponse = res;
+                Ok(res) => {
+                    let mut res: ServiceResponse = res;
                     let req = res.request().clone();
-
-                    log::trace!("map_body for {}", req.uri().to_string());
+                    let uri_string = req.uri().to_string();
 
                     let head = req.head();
                     let response = res.response();
 
+                    //
+                    // These are the transformed registered in config
+                    //
                     let transforms = req
                         .app_data::<web::Data<RespModData>>()
                         .map(|t| t.get_ref());
 
+                    //
+                    // 'indexes' are the transforms that should be applied to the body.
+                    // eg: if 'indexes' is [0, 1] -> this means 2 transforms will be applied to this response
+                    //
                     let indexes: Vec<usize> = transforms
                         .map(|trans| trans.indexes(&head, &response.head()))
                         .unwrap_or(vec![]);
 
                     log::debug!("indexes to process = {:?}", indexes);
 
-                    // if !indexes.is_empty() {
-                    //     let mut body = BytesMut::new();
-                    //     let mut stream = res.take_body();
                     //
-                    //     while let Some(chunk) = stream.next().await {
-                    //         body.extend_from_slice(&chunk?);
-                    //     }
+                    // Early return if no-one wants to edit this response
                     //
-                    //     let decoded = decode_gzip(body.to_vec()).expect("decode");
-                    //     println!("body decoded = |{:?}|", decoded);
-                    //     let encoded = encode_gzip(decoded.into_bytes()).expect("encode");
-                    //     println!("body encoded = |{:?}|", encoded);
+                    if indexes.is_empty() {
+                        return Ok(res);
+                    }
+
+                    let mut body = BytesMut::new();
+                    let mut stream = res.take_body();
+
+                    while let Some(chunk) = stream.next().await {
+                        log::debug!("++ chunk from buffered response body");
+                        body.extend_from_slice(&chunk?);
+                    }
+
                     //
+                    // From the "content-encoding" header, determine if the response
+                    // requires de-coding before we can modify it
                     //
-                    //     // let req = res.request().clone();
-                    //     Ok(res.map_body(|| {
+                    let encoding = res
+                        .response()
+                        .headers()
+                        .get("content-encoding")
+                        .and_then(|val| val.to_str().ok())
+                        .map(|str| ContentEncoding::from(str))
+                        .unwrap_or(ContentEncoding::Identity);
+
+                    log::debug!("handling encoding: {:?}", encoding);
+
                     //
-                    //     }))
-                    // } else {
-                        // let req = res.request().clone();
-                    // }
-                    Ok(res)
+                    // decode the bytes if we can
+                    //
+                    let decoded_bytes: Bytes = match encoding {
+                        ContentEncoding::Gzip => {
+                            log::trace!("decoding a buffered gzip response");
+                            let decoded = decode_gzip(body.to_vec()).expect("decode");
+                            Bytes::from(decoded)
+                        }
+                        _ => Bytes::from(body),
+                    };
+
+                    //
+                    // Process each transform on the content
+                    //
+                    process_buffered_body(decoded_bytes, uri_string, transforms, &indexes)
+                        //
+                        // Whether or not to re-encode the response, based on whether the original was
+                        //
+                        .map(|processes_bytes| match encoding {
+                            ContentEncoding::Gzip => {
+                                let encoded =
+                                    encode_gzip(processes_bytes.to_vec()).expect("gzip encode");
+                                Bytes::from(encoded)
+                            }
+                            _ => processes_bytes,
+                        })
+                        //
+                        // Now with either modified bytes or original, we can re-send them
+                        //
+                        .map(|output_bytes| {
+                            res.map_body(|head, _body| {
+                                head.headers_mut().insert(
+                                    CONTENT_ENCODING,
+                                    HeaderValue::from_str(encoding.as_str())
+                                        .expect("creation of this header never fails"),
+                                );
+                                ResponseBody::Body(Body::Bytes(output_bytes))
+                            })
+                        })
                 }
-                Err(..) => todo!()
+                Err(..) => todo!(),
             }
         })
     }
 }
 
-fn process(
+///
+/// Process the entire buffered body in 1 go, this avoids trying to match over
+/// chunked responses etc
+///
+fn process_buffered_body(
     bytes: Bytes,
     uri: String,
     transforms: Option<&RespModData>,
     indexes: &Vec<usize>,
-) -> Poll<Option<Result<Bytes, Error>>> {
+) -> Result<Bytes, Error> {
     let to_process = std::str::from_utf8(&bytes);
     match to_process {
         Ok(str) => {
@@ -179,27 +241,27 @@ fn process(
                 let next = transforms
                     .map(|trans| trans.process_str(string.clone(), indexes))
                     .unwrap_or(String::new());
-                return Poll::Ready(Some(Ok(Bytes::from(next))));
+                return Ok(Bytes::from(next));
             }
             log::debug!("NOT processing indexes {:?} for `{}`", indexes, uri);
-            Poll::Ready(Some(Ok(Bytes::from(string))))
+            Ok(Bytes::from(string))
         }
         Err(e) => {
             eprintln!("error converting bytes {:?}", e);
-            Poll::Ready(Some(Ok(bytes)))
+            Ok(bytes)
         }
     }
 }
 
-fn decode_gzip(bytes: Vec<u8>) -> io::Result<String> {
+fn decode_gzip(bytes: Vec<u8>) -> io::Result<Vec<u8>> {
     let mut d = GzDecoder::new(&bytes[..]);
-    let mut s = String::new();
-    d.read_to_string(&mut s).unwrap();
+    let mut s = Vec::new();
+    d.read_to_end(&mut s).unwrap();
     Ok(s)
 }
 
 fn encode_gzip(input: Vec<u8>) -> io::Result<Vec<u8>> {
-    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
-    e.write_all(&input[..]);
+    let mut e = GzEncoder::new(Vec::new(), Compression::default());
+    e.write_all(&input[..]).unwrap();
     e.finish()
 }
