@@ -48,10 +48,10 @@ impl FromStr for ServeStaticConfig {
     type Err = ServeStaticError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let split = s.split(":").collect::<Vec<&str>>();
+        let split = s.split(':').collect::<Vec<&str>>();
         match split.as_slice() {
             [one] => {
-                if one.len() == 0 {
+                if one.is_empty() {
                     Err(ServeStaticError::Empty)
                 } else {
                     Ok(ServeStaticConfig::from_dir_only(one))
@@ -61,7 +61,7 @@ impl FromStr for ServeStaticConfig {
                 let as_routes = rs.iter().map(|s| s.to_string()).collect::<Vec<String>>();
                 let dir = ServeStaticConfig::try_path_buf(dir)?;
                 Ok(ServeStaticConfig::Multi(Multi {
-                    dir: PathBuf::from(dir),
+                    dir,
                     routes: as_routes,
                 }))
             }

@@ -15,8 +15,20 @@ pub struct ProxyService {
 }
 
 impl actix_multi::service::MultiServiceTrait for ProxyService {
-    fn check_multi(&self, _req: &ServiceRequest) -> bool {
-        true
+    fn check_multi(&self, req: &ServiceRequest) -> bool {
+        req.uri()
+            .path_and_query()
+            .map(|pq| {
+                let path_str = pq.path();
+                let matches_1 = self.targets.iter().any(|target| {
+                    target.paths.iter().any(|path| {
+                        path_str.starts_with(path.to_str().expect("pathbuf must convert to str"))
+                    })
+                });
+                log::trace!("route=[{}], matches=[{}]", path_str, matches_1);
+                matches_1
+            })
+            .unwrap_or(false)
     }
 }
 
@@ -33,7 +45,11 @@ impl actix_service::Service for ProxyService {
     fn call(&mut self, req: Self::Request) -> Self::Future {
         let (req, body) = req.into_parts();
         let target = self.targets.get(0).expect("at least 1 exists").clone();
-        let target_host = target.target.host_str().expect("must be able to access host").to_string();
+        let target_host = target
+            .target
+            .host_str()
+            .expect("must be able to access host")
+            .to_string();
         log::trace!("target_host={}", target_host);
         log::trace!("proxying [{}] to {}", req.uri(), target.target);
 
@@ -44,7 +60,17 @@ impl actix_service::Service for ProxyService {
                 .expect("Client must exist");
 
             let mut next_uri = target.target.clone();
-            next_uri.set_path(req.uri().path());
+
+            // Set the path for the remote.
+            //  - if the path for the target is "/" it means
+            //    the user wants to forward requests as they are
+            //    eg: "/gql" -> "/gql"
+            //    However if the remote has a path, use that instead
+            let next_path = match target.target.path() {
+                "/" => req.uri().path(),
+                path => path,
+            };
+            next_uri.set_path(next_path);
             next_uri.set_query(req.uri().query());
 
             log::trace!("next_uri = {:?}", next_uri);
@@ -55,9 +81,10 @@ impl actix_service::Service for ProxyService {
                 .request_from(next_uri.as_str(), req.head())
                 .no_decompress();
 
-            forwarded
-                .headers_mut()
-                .insert(HOST, HeaderValue::from_str(target_host.as_str()).expect("unwrap"));
+            forwarded.headers_mut().insert(
+                HOST,
+                HeaderValue::from_str(target_host.as_str()).expect("unwrap"),
+            );
             // forwarded.headers_mut().insert(ACCEPT_ENCODING, HeaderValue::from_str("identity").expect("unwrap"));
             forwarded.headers_mut().remove("upgrade-insecure-requests");
 

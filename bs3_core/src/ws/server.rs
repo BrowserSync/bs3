@@ -70,8 +70,6 @@ impl WsServer {
                 if *id != skip_id {
                     if let Some(addr) = self.sessions.get(id) {
                         let _ = addr.do_send(message.clone());
-                    } else {
-                        ()
                     }
                 }
             }

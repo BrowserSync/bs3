@@ -5,7 +5,7 @@ use bs3_files::{Files, FilesService};
 
 use crate::{
     client::css::Css, client::script::Script, fs::FsWatcher, resp, resp::RespModData,
-    ws::server::WsServer, ws::ws::ws_route,
+    ws::server::WsServer, ws::ws_session::ws_route,
 };
 
 use bytes::Bytes;
@@ -24,7 +24,6 @@ use crate::proxy::service::ProxyService;
 use actix_web::client::Client;
 
 pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
-
     let ws_server = WsServer::default().start();
     let fs_server = FsWatcher::default().start();
 

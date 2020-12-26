@@ -62,7 +62,7 @@ impl NamedFile {
     /// # Examples
     ///
     /// ```rust
-    /// use actix_files::NamedFile;
+    /// use bs3_files::NamedFile;
     /// use std::io::{self, Write};
     /// use std::env;
     /// use std::fs::File;
@@ -138,7 +138,7 @@ impl NamedFile {
     /// # Examples
     ///
     /// ```rust
-    /// use actix_files::NamedFile;
+    /// use bs3_files::NamedFile;
     ///
     /// let file = NamedFile::open("foo.txt");
     /// ```
@@ -158,7 +158,7 @@ impl NamedFile {
     ///
     /// ```rust
     /// # use std::io;
-    /// use actix_files::NamedFile;
+    /// use bs3_files::NamedFile;
     ///
     /// # fn path() -> io::Result<()> {
     /// let file = NamedFile::open("test.txt")?;

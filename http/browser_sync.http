@@ -2,7 +2,7 @@ GET http://localhost:8080
 
 ###
 
-POST http://localhost:8080
+POST http://localhost:8080/gql
 Content-Type: application/json
 
 {
@@ -17,4 +17,43 @@ Content-Type: application/json
 
 {
    "query": "{countries{name}}"
+}
+
+
+###
+# curl 'https://swapi-graphql.netlify.app/.netlify/functions/index'
+#  -H 'authority: swapi-graphql.netlify.app'
+#  -H 'pragma: no-cache'
+#  -H 'cache-control: no-cache'
+#  -H 'accept: application/json'
+#  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.101 Safari/537.36'
+#  -H 'content-type: application/json'
+#  -H 'sec-gpc: 1'
+#  -H 'origin: https://graphql.org'
+#  -H 'sec-fetch-site: cross-site'
+#  -H 'sec-fetch-mode: cors'
+#  -H 'sec-fetch-dest: empty'
+#  -H 'referer: https://graphql.org/'
+#  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8'
+#  --data-binary '{"query":"# Welcome to GraphiQL\n#\n# GraphiQL is an in-browser tool for writing, validating, and\n# testing GraphQL queries.\n#\n# Type queries into this side of the screen, and you will see intelligent\n# typeaheads aware of the current GraphQL type schema and live syntax and\n# validation errors highlighted within the text.\n#\n# GraphQL queries typically start with a \"{\" character. Lines that start\n# with a # are ignored.\n#\n# An example GraphQL query might look like:\n#\n#     {\n#       field(arg: \"value\") {\n#         subField\n#       }\n#     }\n#\n# Keyboard shortcuts:\n#\n#  Prettify Query:  Shift-Ctrl-P (or press the prettify button above)\n#\n#     Merge Query:  Shift-Ctrl-M (or press the merge button above)\n#\n#       Run Query:  Ctrl-Enter (or press the play button above)\n#\n#   Auto Complete:  Ctrl-Space (or just start typing)\n#\n\n{\n  allFilms {\n    films {\n      title\n    }\n  }\n}","variables":null}'
+#  --compressed
+POST https://swapi-graphql.netlify.app/.netlify/functions/index
+accept: application/json
+Content-Type: application/json
+
+{
+  "query": "{allFilms{films{title}}}",
+  "variables": {}
+}
+
+###
+
+
+POST http://localhost:8080/gql
+accept: application/json
+Content-Type: application/json
+
+{
+  "query": "{allFilms{films{title}}}",
+  "variables": {}
 }

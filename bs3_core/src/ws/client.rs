@@ -66,8 +66,10 @@ pub struct ScrollMsg {
 fn test_client_msg() {
     let js = serde_json::json!({
         "kind": "Scroll",
-        "x": 0,
-        "y": -100
+        "payload": {
+            "x": 0,
+            "y": -100
+        }
     });
     let msg: ClientMsg = serde_json::from_value(js).expect("test");
     println!("{:?}", msg);

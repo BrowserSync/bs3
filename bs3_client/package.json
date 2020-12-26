@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "tsc --noEmit",
     "build": "esbuild --bundle src/index.ts --outdir=dist --sourcemap",
     "watch": "npm run build && onchange 'src/**/*.ts' -- npm run build"
   },

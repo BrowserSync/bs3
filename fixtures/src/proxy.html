@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link href="/node_modules/tailwindcss/dist/base.css" rel="stylesheet">
+    <link href="/node_modules/tailwindcss/dist/components.css" rel="stylesheet">
+    <link href="/node_modules/tailwindcss/dist/utilities.css" rel="stylesheet">
+    <title>Proxy example</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main>
+    <p>This example uses configuration like this to proxy to a remote with differing paths.</p>
+    <pre><code>
+        {
+          "proxy": "/gql~https://swapi-graphql.netlify.app/.netlify/functions/index"
+        }
+    </code></pre>
+    <pre><code id="code">waiting...</code></pre></main>
+<script>
+    (async() => {
+        const r = await fetch("/gql", {
+            method: "POST",
+            body: JSON.stringify({
+                "query": "{allFilms{films{title}}}",
+                "variables": {}
+            }),
+            headers: { "content-type": "application/json"}
+        });
+        const json = await r.json();
+        const elem = document.getElementById("code");
+        if (elem) {
+            elem.textContent = JSON.stringify(json, null, 2);
+        }
+    })()
+</script>
+</body>
+</html>

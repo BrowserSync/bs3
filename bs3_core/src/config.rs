@@ -12,6 +12,7 @@ pub struct Config {
     #[structopt(long = "index")]
     pub index: Option<String>,
     #[structopt(long = "proxy", short = "p")]
+    #[serde(default)]
     pub proxies: Vec<ProxyTarget>,
     #[structopt(parse(from_os_str))]
     #[serde(default)]
@@ -24,7 +25,7 @@ impl ServeStatic for Config {
         for pb in &self.trailing_paths {
             output.push(ServeStaticConfig::from_dir_only(&pb))
         }
-        output.extend(self.serve_static.clone().unwrap_or(vec![]));
+        output.extend(self.serve_static.clone().unwrap_or_else(Vec::new));
         output
     }
     fn dir_only(&self) -> Vec<PathBuf> {
@@ -130,7 +131,8 @@ mod tests {
         let proxies = bs.config.proxies();
         assert_eq!(
             vec![ProxyTarget {
-                target: url::Url::from_str("http://www.example.com")?
+                target: url::Url::from_str("http://www.example.com")?,
+                paths: Default::default()
             }],
             proxies
         );
@@ -143,5 +145,16 @@ mod tests {
         println!("{}", p.unwrap_err());
         // let bs = BrowserSync::try_from_args(args.split(" "));
         // assert!(bs.is_err());
+    }
+    #[test]
+    fn test_proxy_from_json() {
+        let input = r#"
+        {
+          "serveStatic": ["fixtures/src", "fixtures"],
+          "proxies": ["/gql~https://swapi-graphql.netlify.app/.netlify/functions/index"]
+        }
+        "#;
+        let config: Config = serde_json::from_str(input).expect("test");
+        dbg!(config);
     }
 }

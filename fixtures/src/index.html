@@ -112,5 +112,19 @@ Read the documentation to get started: https://tailwindui.com/documentation
         <img class="h-56 w-full object-cover sm:h-72 md:h-96 lg:w-full lg:h-full" src="https://source.unsplash.com/random" alt="">
     </div>
 </div>
+<script>
+    (async() => {
+        const r = await fetch("/gql", {
+            method: "POST",
+            body: JSON.stringify({
+                "query": "{allFilms{films{title}}}",
+                "variables": {}
+            }),
+            headers: { "content-type": "application/json"}
+        });
+        const j = await r.json();
+        console.log(j);
+    })()
+</script>
 </body>
 </html>

@@ -3,8 +3,6 @@ use actix::Context;
 use notify::{watcher, DebouncedEvent, FsEventWatcher, RecursiveMode, Watcher};
 use std::path::PathBuf;
 
-use crossbeam_channel;
-
 use crossbeam_channel::unbounded;
 
 use rand::rngs::ThreadRng;
@@ -58,10 +56,11 @@ impl Actor for FsWatcher {
         a.exec_fn(move || {
             loop {
                 match rx.recv() {
-                    Ok(evt) => match s.send(evt) {
-                        Err(e) => println!("send error = {:#?}", e),
-                        _ => { /* noop */ }
-                    },
+                    Ok(evt) => {
+                        if let Err(e) = s.send(evt) {
+                            println!("send error = {:#?}", e);
+                        }
+                    }
                     Err(_e) => {
                         // no-op, we cannot recover/handle this
                     }
@@ -130,7 +129,7 @@ impl From<bs3_files::served::ServedFile> for ServedFile {
         Self {
             web_path: served.web_path.clone(),
             path: served.path.clone(),
-            referer: served.referer.clone(),
+            referer: served.referer,
         }
     }
 }
@@ -146,7 +145,7 @@ impl Handler<bs3_files::served::ServedFile> for FsWatcher {
         // log::debug!("ServedFile = {:#?}", msg);
         if self.watched.contains(&msg.path) {
             log::trace!("!! skipping, already watching: {}", msg.path.display());
-            return ();
+            return;
         }
         let clone: ServedFile = msg.into();
         self.items.insert(clone.path.clone(), clone.clone());

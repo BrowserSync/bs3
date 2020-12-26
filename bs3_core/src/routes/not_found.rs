@@ -37,7 +37,7 @@ impl Service for NotFound {
                 let cloned = &*served.clone();
                 serde_json::to_string_pretty(&cloned).ok()
             })
-            .unwrap_or(String::from("unknown"));
+            .unwrap_or_else(|| String::from("unknown"));
 
         let resp = HttpResponse::NotFound()
             .body(include_str!("../../static/bs_404.html").replace("{config}", &config));

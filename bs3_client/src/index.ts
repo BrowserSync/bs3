@@ -6,9 +6,9 @@ import {EMPTY, Observable, of} from "rxjs";
 const wsUri = (window.location.protocol == 'https:' && 'wss://' || 'ws://') + window.location.host + '/__bs3/ws/';
 const ws = webSocket<ClientMsg>(wsUri);
 
-const fs: Observable<Evt<"FsNotify">> = ws.pipe(
+const fs = ws.pipe(
     filter(x => x.kind === "FsNotify"),
-);
+) as Observable<Evt<"FsNotify">>;
 
 const fsSub = fs.pipe(
     filter(x => !x.payload.item.path.match(/.map$/)),
@@ -22,14 +22,19 @@ const inject = [
     /.png$/,
 ];
 
-const actions = fsSub.pipe(switchMap(events => {
+type Effects =
+    | {
+        kind: 'Reload'
+    };
+
+const actions = fsSub.pipe(switchMap((events): Observable<Effects> => {
     if (events.every((evt) => inject.some(regex => evt.payload.item.path.match(regex)))) {
         console.log('all were injectable');
         return EMPTY;
     } else {
         return of({kind: "Reload"});
     }
-}));
+})) as Observable<Effects>;
 
 const sub = actions.subscribe((action) => {
     switch (action.kind) {

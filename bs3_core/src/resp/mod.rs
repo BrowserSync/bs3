@@ -48,7 +48,7 @@ pub trait RespMod {
 
 pub trait RespModDataTrait {
     fn indexes(&self, req_head: &RequestHead, res_head: &ResponseHead) -> Vec<usize>;
-    fn process_str(&self, input: String, indexes: &Vec<usize>) -> String;
+    fn process_str(&self, input: String, indexes: &[usize]) -> String;
 }
 
 pub struct RespModData {
@@ -70,11 +70,11 @@ impl RespModDataTrait for RespModData {
             .collect()
     }
 
-    fn process_str(&self, input: String, indexes: &Vec<usize>) -> String {
+    fn process_str(&self, input: String, indexes: &[usize]) -> String {
         indexes.iter().fold(input, |acc, index| {
             let item = self.items.get(*index).expect("guarded");
             log::debug!("processing [{}] {}", index, item.name());
-            return item.process_str(acc);
+            item.process_str(acc)
         })
     }
 }
@@ -142,7 +142,7 @@ where
                     //
                     let indexes: Vec<usize> = transforms
                         .map(|trans| trans.indexes(&head, &response.head()))
-                        .unwrap_or(vec![]);
+                        .unwrap_or_else(Vec::new);
 
                     log::debug!("indexes to process = {:?}", indexes);
 
@@ -170,7 +170,7 @@ where
                         .headers()
                         .get("content-encoding")
                         .and_then(|val| val.to_str().ok())
-                        .map(|str| ContentEncoding::from(str))
+                        .map(ContentEncoding::from)
                         .unwrap_or(ContentEncoding::Identity);
 
                     log::debug!("handling encoding: {:?}", encoding);
@@ -230,7 +230,7 @@ fn process_buffered_body(
     bytes: Bytes,
     uri: String,
     transforms: Option<&RespModData>,
-    indexes: &Vec<usize>,
+    indexes: &[usize],
 ) -> Result<Bytes, Error> {
     let to_process = std::str::from_utf8(&bytes);
     match to_process {
@@ -240,7 +240,7 @@ fn process_buffered_body(
                 log::debug!("processing indexes {:?} for `{}`", indexes, uri);
                 let next = transforms
                     .map(|trans| trans.process_str(string.clone(), indexes))
-                    .unwrap_or(String::new());
+                    .unwrap_or_else(String::new);
                 return Ok(Bytes::from(next));
             }
             log::debug!("NOT processing indexes {:?} for `{}`", indexes, uri);
