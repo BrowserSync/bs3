@@ -13,7 +13,7 @@ pub struct Config {
     pub index: Option<String>,
     #[structopt(long = "proxy", short = "p")]
     #[serde(default)]
-    pub proxies: Vec<ProxyTarget>,
+    pub proxy: Vec<ProxyTarget>,
     #[structopt(parse(from_os_str))]
     #[serde(default)]
     pub trailing_paths: Vec<PathBuf>,
@@ -50,7 +50,7 @@ impl ServeStatic for Config {
 
 impl Proxy for Config {
     fn proxies(&self) -> Vec<ProxyTarget> {
-        self.proxies.clone()
+        self.proxy.clone()
     }
 }
 
