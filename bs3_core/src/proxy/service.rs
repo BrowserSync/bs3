@@ -31,8 +31,10 @@ impl actix_service::Service for ProxyService {
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
-        let (req, _body) = req.into_parts();
+        let (req, body) = req.into_parts();
         let target = self.targets.get(0).expect("at least 1 exists").clone();
+        let target_host = target.target.host_str().expect("must be able to access host").to_string();
+        log::trace!("target_host={}", target_host);
         log::trace!("proxying [{}] to {}", req.uri(), target.target);
 
         Either::Right(Box::pin(async move {
@@ -55,13 +57,14 @@ impl actix_service::Service for ProxyService {
 
             forwarded
                 .headers_mut()
-                .insert(HOST, HeaderValue::from_str("example.com").expect("unwrap"));
+                .insert(HOST, HeaderValue::from_str(target_host.as_str()).expect("unwrap"));
             // forwarded.headers_mut().insert(ACCEPT_ENCODING, HeaderValue::from_str("identity").expect("unwrap"));
             forwarded.headers_mut().remove("upgrade-insecure-requests");
 
             log::trace!("forwarding... {:?}", forwarded);
 
-            let mut res = forwarded.send().await?;
+            let mut res = forwarded.send_stream(body).await?;
+            // let mut res = forwarded_req.send_body(body).await.map_err(Error::from)?;
 
             log::trace!("sent body stream");
             log::trace!("res = {:?}", res);

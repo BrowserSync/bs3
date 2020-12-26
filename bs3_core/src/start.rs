@@ -24,7 +24,6 @@ use crate::proxy::service::ProxyService;
 use actix_web::client::Client;
 
 pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
-    env_logger::init();
 
     let ws_server = WsServer::default().start();
     let fs_server = FsWatcher::default().start();
