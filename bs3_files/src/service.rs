@@ -38,8 +38,7 @@ pub struct FilesService {
 
 impl actix_multi::service::MultiServiceTrait for FilesService {
     fn check_multi(&self, req: &ServiceRequest) -> bool {
-        let res = req
-            .uri()
+        req.uri()
             .path_and_query()
             .map(|pq| {
                 let matches = pq.path().starts_with(&self.route);
@@ -52,8 +51,7 @@ impl actix_multi::service::MultiServiceTrait for FilesService {
                 );
                 matches && exists.is_some()
             })
-            .unwrap_or(false);
-        res
+            .unwrap_or(false)
     }
 }
 

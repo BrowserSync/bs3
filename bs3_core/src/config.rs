@@ -17,6 +17,13 @@ pub struct Config {
     #[structopt(parse(from_os_str))]
     #[serde(default)]
     pub trailing_paths: Vec<PathBuf>,
+    #[structopt(long = "port")]
+    #[serde(default = "crate::config::default_port")]
+    pub port: Option<u16>,
+}
+
+pub fn default_port() -> Option<u16> {
+    Some(8090)
 }
 
 impl ServeStatic for Config {

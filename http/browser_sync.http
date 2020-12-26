@@ -57,3 +57,8 @@ Content-Type: application/json
   "query": "{allFilms{films{title}}}",
   "variables": {}
 }
+
+
+###
+
+GET http://localhost:8080

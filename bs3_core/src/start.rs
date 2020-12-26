@@ -20,10 +20,12 @@ use crate::routes::not_found::NotFound;
 use actix_multi::service::MultiServiceTrait;
 use std::sync::Arc;
 
+use crate::config::default_port;
+use crate::proxy::proxy_resp_mod::ProxyResp;
 use crate::proxy::service::ProxyService;
 use actix_web::client::Client;
 
-pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
+pub async fn main(browser_sync: BrowserSync) -> anyhow::Result<()> {
     let ws_server = WsServer::default().start();
     let fs_server = FsWatcher::default().start();
 
@@ -47,12 +49,43 @@ pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
     let proxy_config = browser_sync.config.proxies();
     let proxy_config_arc = Arc::new(proxy_config);
 
+    let mut local_url = url::Url::parse("http://127.0.0.1:80").expect("hard coded");
+    let port = browser_sync.config.port.or_else(default_port);
+    if let Some(port) = port {
+        log::trace!("setting port {}", port);
+        local_url
+            .set_port(Some(port))
+            .map_err(|_e| anyhow::anyhow!("Could not set the port!"))?;
+    }
+
+    let clone_url = Arc::new(local_url.clone());
+    let as_bind_address = format!(
+        "{}:{}",
+        local_url.host_str().expect("can't fail"),
+        local_url.port().unwrap_or(80)
+    );
+
     HttpServer::new(move || {
         let ss_config_arc = ss_config_arc.clone();
         let proxy_config_arc = proxy_config_arc.clone();
-        let mods = RespModData {
+        let local_url = clone_url.clone();
+
+        let mut mods = RespModData {
             items: vec![Box::new(Script), Box::new(Css)],
         };
+
+        // if the proxy is configured & has no path - assume the entire website is being proxied
+        if !proxy_config_arc.is_empty() {
+            let first_without_paths = proxy_config_arc.iter().find(|pt| pt.paths.is_empty());
+            if let Some(first) = first_without_paths {
+                log::debug!("adding a proxy resp for {:?}", first.target);
+                mods.items.push(Box::new(ProxyResp {
+                    target_url: first.target.clone(),
+                    local_url: (*local_url).clone(),
+                }))
+            }
+        }
+
         let mut app = App::new()
             .data(ws_server.clone())
             .data(Client::new())
@@ -114,9 +147,10 @@ pub async fn main(browser_sync: BrowserSync) -> std::io::Result<()> {
 
         app
     })
-    .bind("127.0.0.1:8080")?
+    .bind(as_bind_address)?
     .run()
     .await
+    .map_err(|e| anyhow::anyhow!(e))
 }
 
 async fn chunked_response() -> HttpResponse {

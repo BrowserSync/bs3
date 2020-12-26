@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use serde::{de, Deserialize, Deserializer, Serializer};
 
+pub mod proxy_resp_mod;
 pub mod service;
 
 pub trait Proxy: Default {

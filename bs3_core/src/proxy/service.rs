@@ -1,3 +1,4 @@
+#![allow(clippy::mutable_key_type)]
 use crate::proxy::ProxyTarget;
 use actix_multi::service::MultiServiceFuture;
 use actix_web::dev::{ServiceRequest, ServiceResponse};
@@ -7,8 +8,13 @@ use std::task::{Context, Poll};
 
 use actix_web::client::Client;
 
-use actix_web::http::header::HOST;
-use actix_web::http::HeaderValue;
+use actix_web::http::header::HeaderName;
+use actix_web::http::header::{
+    CONNECTION, CONTENT_SECURITY_POLICY, HOST, REFERER, UPGRADE_INSECURE_REQUESTS,
+};
+
+use std::collections::HashSet;
+use std::iter::FromIterator;
 
 pub struct ProxyService {
     pub targets: Vec<ProxyTarget>,
@@ -21,9 +27,14 @@ impl actix_multi::service::MultiServiceTrait for ProxyService {
             .map(|pq| {
                 let path_str = pq.path();
                 let matches_1 = self.targets.iter().any(|target| {
-                    target.paths.iter().any(|path| {
-                        path_str.starts_with(path.to_str().expect("pathbuf must convert to str"))
-                    })
+                    if target.paths.is_empty() {
+                        true
+                    } else {
+                        target.paths.iter().any(|path| {
+                            path_str
+                                .starts_with(path.to_str().expect("pathbuf must convert to str"))
+                        })
+                    }
                 });
                 log::trace!("route=[{}], matches=[{}]", path_str, matches_1);
                 matches_1
@@ -74,32 +85,36 @@ impl actix_service::Service for ProxyService {
             next_uri.set_query(req.uri().query());
 
             log::trace!("next_uri = {:?}", next_uri);
-            // log::trace!("next_head = {:#?}", req.head());
+            // log::trace!("next_head = {:?}", req.head());
 
             // let forwarded = client.request_from(next_uri.as_str(), req.head());
             let mut forwarded = client
                 .request_from(next_uri.as_str(), req.head())
                 .no_decompress();
 
-            forwarded.headers_mut().insert(
-                HOST,
-                HeaderValue::from_str(target_host.as_str()).expect("unwrap"),
-            );
+            // forwarded.headers_mut().insert(
+            //     HOST,
+            //     HeaderValue::from_str(target_host.as_str()).expect("unwrap"),
+            // );
             // forwarded.headers_mut().insert(ACCEPT_ENCODING, HeaderValue::from_str("identity").expect("unwrap"));
-            forwarded.headers_mut().remove("upgrade-insecure-requests");
+            forwarded.headers_mut().remove(UPGRADE_INSECURE_REQUESTS);
+            forwarded.headers_mut().remove(REFERER);
+            forwarded.headers_mut().remove(HOST);
 
             log::trace!("forwarding... {:?}", forwarded);
 
             let mut res = forwarded.send_stream(body).await?;
-            // let mut res = forwarded_req.send_body(body).await.map_err(Error::from)?;
-
             log::trace!("sent body stream");
             log::trace!("res = {:?}", res);
 
             let mut client_resp = HttpResponse::build(res.status());
+            let excluded_remote_headers: HashSet<HeaderName> =
+                HashSet::from_iter(vec![CONTENT_SECURITY_POLICY, CONNECTION]);
 
-            for (header_name, header_value) in
-                res.headers().iter().filter(|(h, _)| *h != "connection")
+            for (header_name, header_value) in res
+                .headers()
+                .iter()
+                .filter(|(h, _)| !excluded_remote_headers.contains(*h))
             {
                 log::trace!(
                     "setting header {:?}={:?}",
@@ -126,9 +141,9 @@ async fn main_test() -> Result<(), Error> {
     let client = Client::new();
 
     // Create request builder, configure request and send
-    let mut response = client
-        .get("http://www.example.com")
-        .header("User-Agent", "Actix-web")
+    let response = client
+        .get("https://www.bbc.co.uk")
+        // .header("User-Agent", "Actix-web")
         .send()
         .await?;
 
@@ -136,8 +151,8 @@ async fn main_test() -> Result<(), Error> {
     println!("Response: {:?}", response);
 
     // read response body
-    let body = response.body().await?;
-    println!("Downloaded: {:?} bytes", body.len());
+    // let body = response.body().await?;
+    // println!("Downloaded: {:?} bytes", body.len());
 
     Ok(())
 }
