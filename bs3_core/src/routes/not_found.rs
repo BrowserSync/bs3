@@ -39,7 +39,7 @@ impl Service for NotFound {
             })
             .unwrap_or(String::from("unknown"));
 
-        let resp = HttpResponse::Ok()
+        let resp = HttpResponse::NotFound()
             .body(include_str!("../../static/bs_404.html").replace("{config}", &config));
         let (req, _) = req.into_parts();
         let srv_resp = ServiceResponse::new(req, resp);
