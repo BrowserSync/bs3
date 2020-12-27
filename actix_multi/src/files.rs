@@ -35,7 +35,7 @@ impl MultiServiceTrait for Files {
             false
         };
 
-        return handle;
+        handle
     }
 }
 
