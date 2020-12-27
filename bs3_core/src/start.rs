@@ -24,6 +24,8 @@ use crate::config::default_port;
 use crate::proxy::proxy_resp_mod::ProxyResp;
 use crate::proxy::service::ProxyService;
 use actix_web::client::Client;
+use actix_web::dev::Body;
+use actix_service::ServiceFactory;
 
 pub async fn main(browser_sync: BrowserSync) -> anyhow::Result<()> {
     let ws_server = WsServer::default().start();
@@ -65,7 +67,7 @@ pub async fn main(browser_sync: BrowserSync) -> anyhow::Result<()> {
         local_url.port().unwrap_or(80)
     );
 
-    HttpServer::new(move || {
+    let server = HttpServer::new(move || {
         let ss_config_arc = ss_config_arc.clone();
         let proxy_config_arc = proxy_config_arc.clone();
         let local_url = clone_url.clone();
@@ -94,7 +96,6 @@ pub async fn main(browser_sync: BrowserSync) -> anyhow::Result<()> {
             .data(ss_config_arc.clone())
             .wrap(resp::RespModMiddleware)
             .service(web::resource("/__bs3/ws/").to(ws_route))
-            .service(web::resource("/chunked").to(chunked_response))
             .service(Files::new(
                 "/__bs3/client",
                 "/Users/shakyshane/Sites/bs3/bs3_client/dist",
@@ -108,6 +109,10 @@ pub async fn main(browser_sync: BrowserSync) -> anyhow::Result<()> {
             .unwrap_or_else(|| String::from("index.html"));
 
         app = app.service(actix_multi::service::Multi::new(move || {
+            // create the fallthrough services
+            let mut multi_services: Vec<Box<dyn MultiServiceTrait>> = vec![];
+
+            // the FS based services
             let fs_services: Vec<FilesService> =
                 ss_config_arc.clone().iter().fold(vec![], |mut acc, item| {
                     match item {
@@ -127,50 +132,59 @@ pub async fn main(browser_sync: BrowserSync) -> anyhow::Result<()> {
                     acc
                 });
 
-            let mut next: Vec<Box<dyn MultiServiceTrait>> = vec![];
-
             for s in fs_services {
-                next.push(Box::new(s))
+                multi_services.push(Box::new(s))
             }
 
+            // add the proxy config if present
             proxy_config_arc.iter().for_each(|p| {
-                next.push(Box::new(ProxyService {
+                multi_services.push(Box::new(ProxyService {
                     targets: vec![p.clone()],
                 }))
             });
 
             // add the not Found page
-            next.push(Box::new(NotFound));
+            multi_services.push(Box::new(NotFound));
 
-            next
+            multi_services
         }));
 
         app
-    })
-    .bind(as_bind_address)?
-    .run()
-    .await
-    .map_err(|e| anyhow::anyhow!(e))
+    });
+
+    server
+        .workers(1)
+        .bind(as_bind_address)?
+        .run()
+        .await
+        .map_err(|e| anyhow::anyhow!(e))
 }
 
-async fn chunked_response() -> HttpResponse {
-    let bytes = vec![
-        "<!doctype html>
-        <html lang='en'>
-        <head>",
-        "<meta charset='UTF-8'>
-        <meta name='viewport' content='width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0'>
-        <meta http-equiv='X-UA-Compatible' content='ie=edge'>
-        <title>Document</title>
-        </head>
-        <body>
-          <h1>Chunked</h1>
-          <script src='app.js'></script>
-        </body>
-        </html>"
-    ];
-    let stream = futures::stream::iter(bytes).map(|str| Ok(Bytes::from(str)) as Result<Bytes, ()>);
-    HttpResponse::build(StatusCode::OK)
-        .content_type("text/html; charset=utf-8")
-        .streaming(stream)
+#[test]
+fn test_entire_app() {
+    enum Msg {
+        Done
+    }
+    let (s, r) = crossbeam_channel::unbounded::<Msg>();
+    let (s2, r2) = (s.clone(), r.clone());
+
+    std::thread::spawn(|| {
+        actix::run(async move {
+            println!("1 init");
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            println!("hey!");
+        });
+    });
+    std::thread::spawn(|| {
+        actix::run(async move {
+            println!("2 init");
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            s.send(Msg::Done).expect("can send");
+        });
+    });
+    match r.recv() {
+        Ok(Msg::Done) => println!("msg"),
+        // Ok(_) => unimplemented!(),
+        Err(e) => eprintln!("ERR ={}", e)
+    };
 }
