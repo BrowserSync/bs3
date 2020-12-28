@@ -22,8 +22,9 @@ pub mod serve_static;
 pub mod routes;
 
 #[cfg(not(target_arch = "wasm32"))]
+mod local_url;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod proxy;
-
 #[cfg(target_arch = "wasm32")]
 pub use ws::client::*;
 #[cfg(target_arch = "wasm32")]

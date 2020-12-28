@@ -131,28 +131,3 @@ impl actix_service::Service for ProxyService {
         }))
     }
 }
-
-#[actix_web::main]
-#[test]
-async fn main_test() -> Result<(), Error> {
-    std::env::set_var("RUST_LOG", "actix_http=trace");
-    env_logger::init();
-
-    let client = Client::new();
-
-    // Create request builder, configure request and send
-    let response = client
-        .get("https://www.bbc.co.uk")
-        // .header("User-Agent", "Actix-web")
-        .send()
-        .await?;
-
-    // server http response
-    println!("Response: {:?}", response);
-
-    // read response body
-    // let body = response.body().await?;
-    // println!("Downloaded: {:?} bytes", body.len());
-
-    Ok(())
-}

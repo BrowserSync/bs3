@@ -1,5 +1,5 @@
 use actix::Actor;
-use actix_web::{http::StatusCode, web, App, HttpResponse, HttpServer};
+use actix_web::{web, App, HttpServer};
 use bs3_files::served::{Register, Served, ServedAddr};
 use bs3_files::{Files, FilesService};
 
@@ -7,9 +7,6 @@ use crate::{
     client::css::Css, client::script::Script, fs::FsWatcher, resp, resp::RespModData,
     ws::server::WsServer, ws::ws_session::ws_route,
 };
-
-use bytes::Bytes;
-use futures::StreamExt;
 
 use crate::browser_sync::BrowserSync;
 use crate::fs::RegisterFs;
@@ -20,12 +17,9 @@ use crate::routes::not_found::NotFound;
 use actix_multi::service::MultiServiceTrait;
 use std::sync::Arc;
 
-use crate::config::default_port;
 use crate::proxy::proxy_resp_mod::ProxyResp;
 use crate::proxy::service::ProxyService;
 use actix_web::client::Client;
-use actix_web::dev::Body;
-use actix_service::ServiceFactory;
 
 pub async fn main(browser_sync: BrowserSync) -> anyhow::Result<()> {
     let ws_server = WsServer::default().start();
@@ -51,21 +45,9 @@ pub async fn main(browser_sync: BrowserSync) -> anyhow::Result<()> {
     let proxy_config = browser_sync.config.proxies();
     let proxy_config_arc = Arc::new(proxy_config);
 
-    let mut local_url = url::Url::parse("http://127.0.0.1:80").expect("hard coded");
-    let port = browser_sync.config.port.or_else(default_port);
-    if let Some(port) = port {
-        log::trace!("setting port {}", port);
-        local_url
-            .set_port(Some(port))
-            .map_err(|_e| anyhow::anyhow!("Could not set the port!"))?;
-    }
-
-    let clone_url = Arc::new(local_url.clone());
-    let as_bind_address = format!(
-        "{}:{}",
-        local_url.host_str().expect("can't fail"),
-        local_url.port().unwrap_or(80)
-    );
+    let local_url = browser_sync.local_url.0.clone();
+    let clone_url = Arc::new(local_url);
+    let bind_address = browser_sync.bind_address();
 
     let server = HttpServer::new(move || {
         let ss_config_arc = ss_config_arc.clone();
@@ -154,7 +136,7 @@ pub async fn main(browser_sync: BrowserSync) -> anyhow::Result<()> {
 
     server
         .workers(1)
-        .bind(as_bind_address)?
+        .bind(bind_address)?
         .run()
         .await
         .map_err(|e| anyhow::anyhow!(e))
@@ -162,29 +144,78 @@ pub async fn main(browser_sync: BrowserSync) -> anyhow::Result<()> {
 
 #[test]
 fn test_entire_app() {
+    #[derive(Debug, PartialEq)]
     enum Msg {
-        Done
+        Stop,
+        Stopped,
+        Ping(String),
     }
-    let (s, r) = crossbeam_channel::unbounded::<Msg>();
-    let (s2, r2) = (s.clone(), r.clone());
+    #[derive(Debug, PartialEq)]
+    enum ServerMsg {
+        Listening(String),
+    }
 
-    std::thread::spawn(|| {
+    let (outer_s, outer_r) = crossbeam_channel::unbounded::<Msg>();
+    let (outer_s2, _outer_r2) = (outer_s.clone(), outer_r.clone());
+    let (inner_s, inner_r) = crossbeam_channel::unbounded::<Msg>();
+    let (server_s, server_r) = crossbeam_channel::unbounded::<ServerMsg>();
+
+    let _h1 = std::thread::spawn(move || {
+        outer_s.send(Msg::Ping(String::from("1"))).expect("send");
         actix::run(async move {
-            println!("1 init");
-            std::thread::sleep(std::time::Duration::from_secs(1));
-            println!("hey!");
-        });
+            println!("actix running... listening for stop msg...");
+            server_s
+                .send(ServerMsg::Listening(String::from("0.0.0.0:8080")))
+                .expect("can ping");
+            match inner_r.iter().find(|m| *m == Msg::Stop) {
+                Some(_) => {
+                    actix::System::current().stop();
+                    outer_s.send(Msg::Stopped).expect("stopped")
+                }
+                _ => println!("ignoring..."),
+            }
+        })
+        .expect("actix end");
     });
-    std::thread::spawn(|| {
-        actix::run(async move {
-            println!("2 init");
-            std::thread::sleep(std::time::Duration::from_secs(2));
-            s.send(Msg::Done).expect("can send");
-        });
+    let _h2 = std::thread::spawn(move || {
+        outer_s2.send(Msg::Ping(String::from("2"))).expect("send");
+
+        let msg = server_r.recv().expect("listening address");
+        println!("running at {:?}", msg);
+        inner_s.send(Msg::Stop).expect("can send stop");
+
+        // std::thread::sleep(std::time::Duration::from_secs(2));
+        // println!("sending stop from test code...");
+        // actix::run(async move {
+        //     println!("hey!");
+        //     println!("stoppping...!");
+        //     s.send(Msg::Stop).expect("can send stop");
+        // });
     });
-    match r.recv() {
-        Ok(Msg::Done) => println!("msg"),
-        // Ok(_) => unimplemented!(),
-        Err(e) => eprintln!("ERR ={}", e)
-    };
+    outer_r.iter().for_each(|m| match m {
+        Msg::Stopped => println!("YAY!!!! - stopped"),
+        _cmd => println!("msg={:?}", _cmd),
+    });
+    // std::thread::spawn(move || {
+    //     actix::run(async move {
+    //         println!("2 init");
+    //         for m in r2.iter() {
+    //             match m {
+    //                 Msg::Stop => {
+    //                     println!("got stop msg");
+    //                     actix::System::current().stop()
+    //                 },
+    //                 Msg::Done => println!("ignoring done"),
+    //             }
+    //         }
+    //     });
+    //     s2.send(Msg::Done).expect("can send");
+    //     println!("--> after");
+    // });
+    // for m in r.iter() {
+    //     match m {
+    //         Msg::Done => println!("DONE!"),
+    //         Msg::Stop => println!("end...{:?}", m)
+    //     }
+    // };
 }
