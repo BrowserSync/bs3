@@ -5,7 +5,7 @@ async fn main() {
     match browser_sync {
         Ok(browser_sync) => {
             log::debug!("{:#?}", browser_sync);
-            let fut = bs3_core::start::main(browser_sync);
+            let fut = bs3_core::start::main(browser_sync, None);
 
             std::process::exit(match fut.await {
                 Ok(_) => 0,

@@ -20,8 +20,18 @@ use std::sync::Arc;
 use crate::proxy::proxy_resp_mod::ProxyResp;
 use crate::proxy::service::ProxyService;
 use actix_web::client::Client;
+use wasm_bindgen::__rt::core::time::Duration;
+use actix_rt::time::delay_for;
 
-pub async fn main(browser_sync: BrowserSync) -> anyhow::Result<()> {
+#[derive(Debug)]
+pub enum BrowserSyncMsg {
+    Stop,
+}
+
+pub async fn main(
+    browser_sync: BrowserSync,
+    recv: Option<crossbeam_channel::Receiver<BrowserSyncMsg>>,
+) -> anyhow::Result<()> {
     let ws_server = WsServer::default().start();
     let fs_server = FsWatcher::default().start();
 
@@ -142,80 +152,87 @@ pub async fn main(browser_sync: BrowserSync) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!(e))
 }
 
-#[test]
-fn test_entire_app() {
-    #[derive(Debug, PartialEq)]
-    enum Msg {
-        Stop,
-        Stopped,
-        Ping(String),
-    }
-    #[derive(Debug, PartialEq)]
-    enum ServerMsg {
-        Listening(String),
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::http::header::{ACCEPT, ACCEPT_ENCODING};
+    use std::future::Future;
+    use std::pin::Pin;
+    use actix_web::http;
 
-    let (outer_s, outer_r) = crossbeam_channel::unbounded::<Msg>();
-    let (outer_s2, _outer_r2) = (outer_s.clone(), outer_r.clone());
-    let (inner_s, inner_r) = crossbeam_channel::unbounded::<Msg>();
-    let (server_s, server_r) = crossbeam_channel::unbounded::<ServerMsg>();
+    type TestError = Option<String>;
 
-    let _h1 = std::thread::spawn(move || {
-        outer_s.send(Msg::Ping(String::from("1"))).expect("send");
-        actix::run(async move {
-            println!("actix running... listening for stop msg...");
-            server_s
-                .send(ServerMsg::Listening(String::from("0.0.0.0:8080")))
-                .expect("can ping");
-            match inner_r.iter().find(|m| *m == Msg::Stop) {
-                Some(_) => {
-                    actix::System::current().stop();
-                    outer_s.send(Msg::Stopped).expect("stopped")
-                }
-                _ => println!("ignoring..."),
+    fn runner(args: Vec<&'static str>, tester: impl Fn(url::Url) -> Pin<Box<dyn Future<Output=Result<TestError, anyhow::Error>>>> + 'static) {
+        println!("hey");
+        #[derive(Debug, PartialEq)]
+        enum ServerMsg {
+            Listening(url::Url),
+        }
+        #[derive(Debug, PartialEq)]
+        enum Status {
+            Stopped,
+            Error(String)
+        }
+        struct Stop;
+
+        actix_rt::System::new("test90121").block_on(async move {
+            let (mut tx, mut rx) = tokio::sync::mpsc::channel::<Status>(1);
+            let (mut server_tx, mut server_rx) = tokio::sync::mpsc::channel::<ServerMsg>(1);
+            actix_rt::spawn(async move {
+                let bs = BrowserSync::try_from_args(args.into_iter()).expect("bs test");
+                server_tx
+                    .send(ServerMsg::Listening(bs.local_url.0.clone()))
+                    .await;
+                match main(bs, None).await {
+                    Ok(_) => log::trace!("server closed cleanly"),
+                    Err(e) => log::error!("{}", e)
+                };
+            });
+            actix_rt::spawn(async move {
+                match server_rx.recv().await {
+                    Some(ServerMsg::Listening(url)) => {
+                        // actix_rt::blocking()
+                        let mut rt = actix_rt::Runtime::new().unwrap();
+                        match tester(url).await {
+                            Ok(Some(error)) => tx.send(Status::Error(error)).await,
+                            _ => tx.send(Status::Stopped).await,
+                        };
+                        actix_rt::System::current().stop();
+                    }
+                    _cmd => todo!("msg not supported")
+                };
+            });
+            match rx.recv().await {
+                Some(Status::Error(error_str)) => {
+                    eprintln!("error={}", error_str);
+                    panic!("{}", error_str);
+                },
+                Some(Status::Stopped) => println!("done!"),
+                None => println!("none..."),
             }
-        })
-        .expect("actix end");
-    });
-    let _h2 = std::thread::spawn(move || {
-        outer_s2.send(Msg::Ping(String::from("2"))).expect("send");
+        });
+    }
 
-        let msg = server_r.recv().expect("listening address");
-        println!("running at {:?}", msg);
-        inner_s.send(Msg::Stop).expect("can send stop");
+    #[test]
+    fn test_entire_app() {
+        runner(vec!["bs", "/Users/shakyshane/Sites/bs3/fixtures/src", "--port", "9000"], |url| {
+            Box::pin(async move {
+                let mut client = Client::default();
+                let mut local_url = url.clone();
+                local_url.set_path("/kittens");
+                let response1 = client.get(local_url.to_string() )
+                    .header(ACCEPT, "*/*")
+                    .send()
+                    .await
+                    .map_err(|e| anyhow::anyhow!("{}", e))?;
 
-        // std::thread::sleep(std::time::Duration::from_secs(2));
-        // println!("sending stop from test code...");
-        // actix::run(async move {
-        //     println!("hey!");
-        //     println!("stoppping...!");
-        //     s.send(Msg::Stop).expect("can send stop");
-        // });
-    });
-    outer_r.iter().for_each(|m| match m {
-        Msg::Stopped => println!("YAY!!!! - stopped"),
-        _cmd => println!("msg={:?}", _cmd),
-    });
-    // std::thread::spawn(move || {
-    //     actix::run(async move {
-    //         println!("2 init");
-    //         for m in r2.iter() {
-    //             match m {
-    //                 Msg::Stop => {
-    //                     println!("got stop msg");
-    //                     actix::System::current().stop()
-    //                 },
-    //                 Msg::Done => println!("ignoring done"),
-    //             }
-    //         }
-    //     });
-    //     s2.send(Msg::Done).expect("can send");
-    //     println!("--> after");
-    // });
-    // for m in r.iter() {
-    //     match m {
-    //         Msg::Done => println!("DONE!"),
-    //         Msg::Stop => println!("end...{:?}", m)
-    //     }
-    // };
+                if response1.status() != 200 {
+                    return Ok(Some(String::from("none-200 error")));
+                }
+
+                Ok(None)
+            })
+        });
+    }
 }
+
