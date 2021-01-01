@@ -1,4 +1,4 @@
-use actix::Actor;
+use actix::{Actor, Addr, Context};
 use actix_web::{client::Client, web, App, HttpServer};
 use std::sync::Arc;
 
@@ -11,6 +11,7 @@ use actix_multi::service::MultiServiceTrait;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::oneshot;
 
+use crate::server::{Server, ServerIncoming};
 use crate::{
     browser_sync::BrowserSync,
     bs_error::BsError,
@@ -28,6 +29,7 @@ use crate::{
     ws::server::WsServer,
     ws::ws_session::ws_route,
 };
+use actix_rt::time::delay_for;
 
 #[derive(Debug, Clone)]
 pub enum BrowserSyncMsg {
@@ -44,17 +46,14 @@ pub async fn main(
     browser_sync: BrowserSync,
     _recv: Option<Sender<BrowserSyncMsg>>,
 ) -> anyhow::Result<Final> {
-    let ws_server = WsServer::default().start();
-    let fs_server = FsWatcher::default().start();
     let (stop_msg_sender, stop_msg_receiver) = oneshot::channel();
 
-    // service for tracking served static files
-    let served = Served::default().start();
-
-    let served_addr = Arc::new(ServedAddr(served.clone()));
+    let ws_server = WsServer::default().start();
+    let fs_server = FsWatcher::default().start();
+    let served_files = Served::default().start();
 
     // let the FS watcher know when a file is served from disk
-    served.do_send(Register {
+    served_files.do_send(Register {
         addr: fs_server.clone().recipient(),
     });
 
@@ -62,22 +61,27 @@ pub async fn main(
         addr: ws_server.clone().recipient(),
     });
 
-    let ss_config = browser_sync.config.serve_static_config();
-    let ss_config_arc = Arc::new(ss_config);
-
-    let proxy_config = browser_sync.config.proxies();
-    let proxy_config_arc = Arc::new(proxy_config);
-
-    let local_url = browser_sync.local_url.0.clone();
     let port = browser_sync.local_url.0.port();
-    let _target_port = local_url.port().expect("must have a port set here");
-    let clone_url = Arc::new(local_url);
     let bind_address = browser_sync.bind_address();
 
+    let s = Server {
+        ws_server: ws_server.clone(),
+        fs_server: fs_server.clone(),
+        served_files: served_files.clone(),
+        port,
+        bind_address: bind_address.clone(),
+    };
+
+    let addr = s.start();
+
     let server = HttpServer::new(move || {
-        let ss_config_arc = ss_config_arc.clone();
-        let proxy_config_arc = proxy_config_arc.clone();
-        let local_url = clone_url.clone();
+        let served_addr = Arc::new(ServedAddr(served_files.clone()));
+        let ss_config = browser_sync.config.serve_static_config();
+        let ss_config_arc = Arc::new(ss_config);
+        let proxy_config = browser_sync.config.proxies();
+        let proxy_config_arc = Arc::new(proxy_config);
+        // let clone_url = browser_sync.local_url.0.clone();
+        let local_url = browser_sync.local_url.0.clone();
 
         let mut mods = RespModData {
             items: vec![Box::new(Script), Box::new(Css)],
@@ -90,16 +94,16 @@ pub async fn main(
                 log::debug!("adding a proxy resp for {:?}", first.target);
                 mods.items.push(Box::new(ProxyResp {
                     target_url: first.target.clone(),
-                    local_url: (*local_url).clone(),
+                    local_url,
                 }))
             }
         }
 
         let mut app = App::new()
-            .data(ws_server.clone())
             .data(Client::new())
+            .data(ws_server.clone())
             .data(mods)
-            .data(served_addr.clone())
+            .data(served_addr)
             .data(ss_config_arc.clone())
             .wrap(resp::RespModMiddleware)
             .service(web::resource("/__bs3/ws/").to(ws_route))
@@ -160,6 +164,12 @@ pub async fn main(
     });
 
     actix_rt::spawn(async move {
+        delay_for(std::time::Duration::from_secs(2)).await;
+        let r = addr.send(ServerIncoming::Stop).await;
+        dbg!(r);
+    });
+
+    actix_rt::spawn(async move {
         let binded = server.workers(1).bind(bind_address);
         if let Err(e) = binded {
             stop_msg_sender
@@ -183,6 +193,7 @@ pub async fn main(
             }
         }
     });
+
     stop_msg_receiver.await.map_err(BsError::unknown)
 }
 
