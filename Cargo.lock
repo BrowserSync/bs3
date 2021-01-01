@@ -737,6 +737,7 @@ dependencies = [
 name = "bs3"
 version = "0.1.0"
 dependencies = [
+ "actix-rt",
  "actix-web",
  "bs3_core",
  "env_logger 0.8.1",
@@ -747,6 +748,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smol",
+ "tokio",
 ]
 
 [[package]]

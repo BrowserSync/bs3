@@ -8,7 +8,7 @@ use bs3_files::{
 };
 
 use actix_multi::service::MultiServiceTrait;
-use tokio::sync::broadcast::Receiver;
+use tokio::sync::broadcast::Sender;
 use tokio::sync::oneshot;
 
 use crate::{
@@ -29,7 +29,7 @@ use crate::{
     ws::ws_session::ws_route,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BrowserSyncMsg {
     Listening { bs: BrowserSync },
 }
@@ -42,7 +42,7 @@ pub enum Final {
 
 pub async fn main(
     browser_sync: BrowserSync,
-    _recv: Option<Receiver<BrowserSyncMsg>>,
+    _recv: Option<Sender<BrowserSyncMsg>>,
 ) -> anyhow::Result<Final> {
     let ws_server = WsServer::default().start();
     let fs_server = FsWatcher::default().start();
@@ -69,6 +69,7 @@ pub async fn main(
     let proxy_config_arc = Arc::new(proxy_config);
 
     let local_url = browser_sync.local_url.0.clone();
+    let port = browser_sync.local_url.0.port();
     let _target_port = local_url.port().expect("must have a port set here");
     let clone_url = Arc::new(local_url);
     let bind_address = browser_sync.bind_address();
@@ -162,15 +163,16 @@ pub async fn main(
         let binded = server.workers(1).bind(bind_address);
         if let Err(e) = binded {
             stop_msg_sender
-                .send(Final::Errored(anyhow::anyhow!(e)))
+                .send(Final::Errored(
+                    BsError::CouldNotBind {
+                        e: anyhow::anyhow!(e),
+                        port: port.unwrap_or(80),
+                    }
+                    .into(),
+                ))
                 .expect("can send inner stop message");
         } else {
-            let running: Result<_, anyhow::Error> = binded.unwrap().run().await.map_err(|e| {
-                BsError::Unknown {
-                    e: anyhow::anyhow!(e),
-                }
-                .into()
-            });
+            let running = binded.unwrap().run().await.map_err(BsError::unknown);
             match running {
                 Ok(_) => stop_msg_sender
                     .send(Final::Stopped)
@@ -181,12 +183,7 @@ pub async fn main(
             }
         }
     });
-    stop_msg_receiver.await.map_err(|e| {
-        BsError::Unknown {
-            e: anyhow::anyhow!(e),
-        }
-        .into()
-    })
+    stop_msg_receiver.await.map_err(BsError::unknown)
 }
 
 #[cfg(test)]

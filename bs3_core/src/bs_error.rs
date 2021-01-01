@@ -7,3 +7,11 @@ pub enum BsError {
     #[error("Unknown startup error \n\n\toriginal error: {e}")]
     Unknown { e: anyhow::Error },
 }
+
+impl BsError {
+    pub fn unknown(
+        e: impl std::error::Error + std::marker::Sync + std::marker::Send + 'static,
+    ) -> anyhow::Error {
+        BsError::Unknown { e: e.into() }.into()
+    }
+}

@@ -1,3 +1,4 @@
+#![allow(clippy::result_unit_err)]
 /// HTTP Range header representation.
 #[derive(Debug, Clone, Copy)]
 pub struct HttpRange {
