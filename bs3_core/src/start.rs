@@ -8,6 +8,8 @@ use bs3_files::{
 };
 
 use actix_multi::service::MultiServiceTrait;
+use tokio::sync::broadcast::Receiver;
+use tokio::sync::oneshot;
 
 use crate::{
     browser_sync::BrowserSync,
@@ -29,15 +31,22 @@ use crate::{
 
 #[derive(Debug)]
 pub enum BrowserSyncMsg {
-    Stop,
+    Listening { bs: BrowserSync },
+}
+
+#[derive(Debug)]
+pub enum Final {
+    Stopped,
+    Errored(anyhow::Error),
 }
 
 pub async fn main(
     browser_sync: BrowserSync,
-    _recv: Option<crossbeam_channel::Receiver<BrowserSyncMsg>>,
-) -> anyhow::Result<()> {
+    _recv: Option<Receiver<BrowserSyncMsg>>,
+) -> anyhow::Result<Final> {
     let ws_server = WsServer::default().start();
     let fs_server = FsWatcher::default().start();
+    let (stop_msg_sender, stop_msg_receiver) = oneshot::channel();
 
     // service for tracking served static files
     let served = Served::default().start();
@@ -60,7 +69,7 @@ pub async fn main(
     let proxy_config_arc = Arc::new(proxy_config);
 
     let local_url = browser_sync.local_url.0.clone();
-    let target_port = local_url.port().expect("must have a port set here");
+    let _target_port = local_url.port().expect("must have a port set here");
     let clone_url = Arc::new(local_url);
     let bind_address = browser_sync.bind_address();
 
@@ -149,21 +158,35 @@ pub async fn main(
         app
     });
 
-    server
-        .workers(1)
-        .bind(bind_address)
-        .map_err(|e| BsError::CouldNotBind {
-            e: anyhow::anyhow!(e),
-            port: target_port,
-        })?
-        .run()
-        .await
-        .map_err(|e| {
-            BsError::Unknown {
-                e: anyhow::anyhow!(e),
+    actix_rt::spawn(async move {
+        let binded = server.workers(1).bind(bind_address);
+        if let Err(e) = binded {
+            stop_msg_sender
+                .send(Final::Errored(anyhow::anyhow!(e)))
+                .expect("can send inner stop message");
+        } else {
+            let running: Result<_, anyhow::Error> = binded.unwrap().run().await.map_err(|e| {
+                BsError::Unknown {
+                    e: anyhow::anyhow!(e),
+                }
+                .into()
+            });
+            match running {
+                Ok(_) => stop_msg_sender
+                    .send(Final::Stopped)
+                    .expect("can send inner stop message"),
+                Err(e) => {
+                    eprintln!("An error occurred {}", e);
+                }
             }
-            .into()
-        })
+        }
+    });
+    stop_msg_receiver.await.map_err(|e| {
+        BsError::Unknown {
+            e: anyhow::anyhow!(e),
+        }
+        .into()
+    })
 }
 
 #[cfg(test)]
