@@ -1,6 +1,7 @@
 use crate::proxy::{Proxy, ProxyTarget};
 use crate::serve_static::{Multi, ServeStatic, ServeStaticConfig};
 use serde::{Deserialize, Serialize};
+use std::net::TcpListener;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -24,6 +25,13 @@ pub struct Config {
 
 pub fn default_port() -> Option<u16> {
     Some(8090)
+}
+
+pub fn get_available_port() -> Option<u16> {
+    TcpListener::bind("127.0.0.1:0")
+        .and_then(|listener| listener.local_addr())
+        .map(|socket_addr| socket_addr.port())
+        .ok()
 }
 
 impl ServeStatic for Config {
@@ -100,7 +108,7 @@ mod tests {
 
     #[test]
     fn test_from_args() -> anyhow::Result<()> {
-        let args = "prog . --serve-static static";
+        let args = ". --serve-static static";
         let bs = BrowserSync::try_from_args(args.split(" "))?;
         let ss = bs.config.serve_static_config();
         assert_eq!(
@@ -115,7 +123,7 @@ mod tests {
 
     #[test]
     fn test_from_args_with_shorthard() -> anyhow::Result<()> {
-        let args = "prog . --serve-static node_modules:fixtures/node_modules";
+        let args = ". --serve-static node_modules:fixtures/node_modules";
         let bs = BrowserSync::try_from_args(args.split(" "))?;
         let ss = bs.config.serve_static_config();
         assert_eq!(
@@ -133,7 +141,7 @@ mod tests {
 
     #[test]
     fn test_proxy_from_args() -> anyhow::Result<()> {
-        let args = "prog --proxy http://www.example.com";
+        let args = "--proxy http://www.example.com";
         let bs = BrowserSync::try_from_args(args.split(" "))?;
         let proxies = bs.config.proxies();
         assert_eq!(
@@ -147,7 +155,7 @@ mod tests {
     }
     #[test]
     fn test_proxy_from_args_error() {
-        let args = "prog --proxy http:/.example.com";
+        let args = "--proxy http:/.example.com";
         let p = url::Url::parse(args);
         println!("{}", p.unwrap_err());
         // let bs = BrowserSync::try_from_args(args.split(" "));

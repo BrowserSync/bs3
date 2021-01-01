@@ -25,10 +25,18 @@ pub mod routes;
 mod local_url;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod proxy;
+
+#[cfg(not(target_arch = "wasm32"))]
+mod bs_error;
+
 #[cfg(target_arch = "wasm32")]
 pub use ws::client::*;
 #[cfg(target_arch = "wasm32")]
 pub mod ws;
+
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg(test)]
+mod test_utils;
 
 #[cfg(target_arch = "wasm32")]
 pub fn main() {}

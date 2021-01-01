@@ -23,16 +23,23 @@ impl BrowserSync {
     /// # use bs3_core::browser_sync::BrowserSync;
     /// # use crate::bs3_core::serve_static::ServeStatic;
     /// # use crate::bs3_core::serve_static::ServeStaticConfig;
-    /// let args = vec!["bs3", "fixtures/src"].into_iter();
+    /// let args = vec!["fixtures/src"].into_iter();
     /// let bs = BrowserSync::try_from_args(args).expect("unpack");
     /// assert_eq!(bs.config.serve_static_config().len(), 1);
     /// assert_eq!(bs.config.serve_static_config().get(0).expect("test"), &ServeStaticConfig::DirOnly(PathBuf::from("fixtures/src")));
     /// ```
     pub fn try_from_args(args: impl Iterator<Item = impl Into<String>>) -> anyhow::Result<Self> {
+        let mut prefix = vec!["bs".to_string()];
         let args = args.into_iter().map(|m| m.into()).collect::<Vec<String>>();
-        let config: Config = Config::from_iter_safe(args)?;
+        prefix.extend(args);
+        let config: Config = Config::from_iter_safe(prefix)?;
         let local_url = LocalUrl::try_from_port(config.port.or_else(default_port))?;
         Ok(Self { config, local_url })
+    }
+    pub fn set_port(&mut self, port: u16) {
+        self.config.port = Some(port);
+        self.local_url =
+            LocalUrl::try_from_port(Some(port)).expect("Should be able to update a port");
     }
     pub fn bind_address(&self) -> String {
         let local_url = self.local_url.0.clone();

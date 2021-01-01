@@ -1,27 +1,31 @@
 use actix::Actor;
-use actix_web::{web, App, HttpServer};
-use bs3_files::served::{Register, Served, ServedAddr};
-use bs3_files::{Files, FilesService};
-
-use crate::{
-    client::css::Css, client::script::Script, fs::FsWatcher, resp, resp::RespModData,
-    ws::server::WsServer, ws::ws_session::ws_route,
-};
-
-use crate::browser_sync::BrowserSync;
-use crate::fs::RegisterFs;
-use crate::serve_static::{ServeStatic, ServeStaticConfig};
-
-use crate::proxy::Proxy;
-use crate::routes::not_found::NotFound;
-use actix_multi::service::MultiServiceTrait;
+use actix_web::{client::Client, web, App, HttpServer};
 use std::sync::Arc;
 
-use crate::proxy::proxy_resp_mod::ProxyResp;
-use crate::proxy::service::ProxyService;
-use actix_web::client::Client;
-use wasm_bindgen::__rt::core::time::Duration;
-use actix_rt::time::delay_for;
+use bs3_files::{
+    served::{Register, Served, ServedAddr},
+    Files, FilesService,
+};
+
+use actix_multi::service::MultiServiceTrait;
+
+use crate::{
+    browser_sync::BrowserSync,
+    bs_error::BsError,
+    client::css::Css,
+    client::script::Script,
+    fs::FsWatcher,
+    fs::RegisterFs,
+    proxy::proxy_resp_mod::ProxyResp,
+    proxy::service::ProxyService,
+    proxy::Proxy,
+    resp,
+    resp::RespModData,
+    routes::not_found::NotFound,
+    serve_static::{ServeStatic, ServeStaticConfig},
+    ws::server::WsServer,
+    ws::ws_session::ws_route,
+};
 
 #[derive(Debug)]
 pub enum BrowserSyncMsg {
@@ -30,7 +34,7 @@ pub enum BrowserSyncMsg {
 
 pub async fn main(
     browser_sync: BrowserSync,
-    recv: Option<crossbeam_channel::Receiver<BrowserSyncMsg>>,
+    _recv: Option<crossbeam_channel::Receiver<BrowserSyncMsg>>,
 ) -> anyhow::Result<()> {
     let ws_server = WsServer::default().start();
     let fs_server = FsWatcher::default().start();
@@ -56,6 +60,7 @@ pub async fn main(
     let proxy_config_arc = Arc::new(proxy_config);
 
     let local_url = browser_sync.local_url.0.clone();
+    let target_port = local_url.port().expect("must have a port set here");
     let clone_url = Arc::new(local_url);
     let bind_address = browser_sync.bind_address();
 
@@ -146,93 +151,57 @@ pub async fn main(
 
     server
         .workers(1)
-        .bind(bind_address)?
+        .bind(bind_address)
+        .map_err(|e| BsError::CouldNotBind {
+            e: anyhow::anyhow!(e),
+            port: target_port,
+        })?
         .run()
         .await
-        .map_err(|e| anyhow::anyhow!(e))
+        .map_err(|e| {
+            BsError::Unknown {
+                e: anyhow::anyhow!(e),
+            }
+            .into()
+        })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use actix_web::http::header::{ACCEPT, ACCEPT_ENCODING};
-    use std::future::Future;
-    use std::pin::Pin;
-    use actix_web::http;
+    use crate::test_utils::Runner;
 
-    type TestError = Option<String>;
-
-    fn runner(args: Vec<&'static str>, tester: impl Fn(url::Url) -> Pin<Box<dyn Future<Output=Result<TestError, anyhow::Error>>>> + 'static) {
-        println!("hey");
-        #[derive(Debug, PartialEq)]
-        enum ServerMsg {
-            Listening(url::Url),
+    fn dir(path: &str) -> String {
+        let mut cwd = std::env::current_dir().expect("current_dir");
+        if cwd.ends_with("bs3_core") {
+            cwd.pop();
         }
-        #[derive(Debug, PartialEq)]
-        enum Status {
-            Stopped,
-            Error(String)
-        }
-        struct Stop;
-
-        actix_rt::System::new("test90121").block_on(async move {
-            let (mut tx, mut rx) = tokio::sync::mpsc::channel::<Status>(1);
-            let (mut server_tx, mut server_rx) = tokio::sync::mpsc::channel::<ServerMsg>(1);
-            actix_rt::spawn(async move {
-                let bs = BrowserSync::try_from_args(args.into_iter()).expect("bs test");
-                server_tx
-                    .send(ServerMsg::Listening(bs.local_url.0.clone()))
-                    .await;
-                match main(bs, None).await {
-                    Ok(_) => log::trace!("server closed cleanly"),
-                    Err(e) => log::error!("{}", e)
-                };
-            });
-            actix_rt::spawn(async move {
-                match server_rx.recv().await {
-                    Some(ServerMsg::Listening(url)) => {
-                        // actix_rt::blocking()
-                        let mut rt = actix_rt::Runtime::new().unwrap();
-                        match tester(url).await {
-                            Ok(Some(error)) => tx.send(Status::Error(error)).await,
-                            _ => tx.send(Status::Stopped).await,
-                        };
-                        actix_rt::System::current().stop();
-                    }
-                    _cmd => todo!("msg not supported")
-                };
-            });
-            match rx.recv().await {
-                Some(Status::Error(error_str)) => {
-                    eprintln!("error={}", error_str);
-                    panic!("{}", error_str);
-                },
-                Some(Status::Stopped) => println!("done!"),
-                None => println!("none..."),
-            }
-        });
+        cwd.join(path).to_string_lossy().to_string()
     }
 
     #[test]
-    fn test_entire_app() {
-        runner(vec!["bs", "/Users/shakyshane/Sites/bs3/fixtures/src", "--port", "9000"], |url| {
-            Box::pin(async move {
-                let mut client = Client::default();
-                let mut local_url = url.clone();
-                local_url.set_path("/kittens");
-                let response1 = client.get(local_url.to_string() )
-                    .header(ACCEPT, "*/*")
-                    .send()
-                    .await
-                    .map_err(|e| anyhow::anyhow!("{}", e))?;
-
-                if response1.status() != 200 {
-                    return Ok(Some(String::from("none-200 error")));
-                }
-
-                Ok(None)
-            })
-        });
+    fn test_200() -> anyhow::Result<()> {
+        let name = "testing homepage gives 200 when a valid path is given";
+        let dir = dir("fixtures/src");
+        let dir = vec![dir.as_str()];
+        Runner::from_cli_args(name, dir)?.test(|url| {
+            Box::pin(async move { Runner::assert_status(Runner::req(&url, "/").await?, 200) })
+        })
+    }
+    #[test]
+    fn test_200_ss() -> anyhow::Result<()> {
+        let name = "testing homepage gives 200 when given with --serve-static flag";
+        let dir = dir("fixtures/src");
+        let args = vec!["--serve-static", dir.as_str()];
+        Runner::from_cli_args(name, args)?.test(|url| {
+            Box::pin(async move { Runner::assert_status(Runner::req(&url, "/").await?, 200) })
+        })
+    }
+    #[test]
+    fn test_404() -> anyhow::Result<()> {
+        let name = "Testing a 404 response is given when no static files or proxy given";
+        let args: Vec<&str> = vec![];
+        Runner::from_cli_args(name, args)?.test(|url: url::Url| {
+            Box::pin(async move { Runner::assert_status(Runner::req(&url, "/").await?, 404) })
+        })
     }
 }
-
