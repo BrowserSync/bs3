@@ -2,8 +2,10 @@ use actix_web::{App, HttpRequest, HttpResponse, HttpServer};
 
 use tokio::sync::broadcast::Sender;
 
-use crate::{browser_sync::BrowserSync, bs_error::BsError};
+use crate::browser_sync::BrowserSync;
 
+use crate::server::{Server, Start};
+use actix::{Actor, Addr};
 use actix_web::http::StatusCode;
 
 #[derive(Debug, Clone)]
@@ -17,28 +19,63 @@ pub enum Final {
     Errored(anyhow::Error),
 }
 
-#[actix_web::get("/")]
-async fn welcome(_req: HttpRequest) -> actix_web::Result<HttpResponse> {
-    // response
-    Ok(HttpResponse::build(StatusCode::OK)
-        .content_type("text/html; charset=utf-8")
-        .body("hello world"))
-}
-
 pub async fn main(
     _browser_sync: BrowserSync,
     _recv: Option<Sender<BrowserSyncMsg>>,
-) -> anyhow::Result<()> {
-    let server = HttpServer::new(move || App::new().service(welcome));
-    server
-        .bind("127.0.0.1:8080")
-        .map_err(|e| BsError::CouldNotBind {
-            e: anyhow::anyhow!(e),
-            port: 8080,
-        })?
-        .run()
-        .await
-        .map_err(BsError::unknown)
+) -> anyhow::Result<Addr<Server>> {
+    let addr = (Server { spawn_handle: None }).start();
+    let add2 = addr.clone();
+    let add23 = addr.clone();
+    let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+    let (tx2, rx2) = tokio::sync::oneshot::channel::<()>();
+    actix_rt::spawn(async move {
+        println!("creating 1");
+        match addr
+            .send(Start {
+                bind: String::from("127.0.0.1:8080"),
+            })
+            .await
+        {
+            Ok(rx) => {
+                println!("listening...");
+                // rx;
+                println!("listening done......");
+                tx.send(());
+            }
+            Err(e) => eprintln!("err={:?}", e),
+        };
+    });
+    actix_rt::spawn(async move {
+        println!("creating 1");
+        match add2
+            .send(Start {
+                bind: String::from("127.0.0.1:8081"),
+            })
+            .await
+        {
+            Ok(rx) => {
+                println!("listening...");
+                // rx;
+                println!("listening done......");
+                tx2.send(());
+            }
+            Err(e) => eprintln!("err={:?}", e),
+        };
+    });
+    // actix_rt::spawn(async move {
+    //     println!("creating 2");
+    //     match add2.clone().send(Start).await {
+    //         Ok(rx) => {
+    //             println!("listening...");
+    //             // rx;
+    //             println!("listening done......");
+    //             tx.send(());
+    //         }
+    //         Err(e) => eprintln!("err={:?}", e),
+    //     };
+    // });
+    futures::future::select(rx, rx2).await;
+    Ok(add23)
 }
 
 #[cfg(test)]
