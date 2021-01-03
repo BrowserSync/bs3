@@ -13,7 +13,7 @@ pub struct Server {
 
 impl Actor for Server {
     type Context = Context<Self>;
-    fn started(&mut self, ctx: &mut Self::Context) {
+    fn started(&mut self, _ctx: &mut Self::Context) {
         println!("yay! running now!!!!!!!");
     }
 }
@@ -27,7 +27,7 @@ pub enum ServerIncoming {
 impl Handler<ServerIncoming> for Server {
     type Result = String;
 
-    fn handle(&mut self, msg: ServerIncoming, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, _msg: ServerIncoming, _ctx: &mut Context<Self>) -> Self::Result {
         println!("Received a STOP message...");
         String::from("hahaha")
     }
