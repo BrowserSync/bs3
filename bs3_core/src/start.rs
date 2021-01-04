@@ -4,8 +4,9 @@ use tokio::sync::broadcast::Sender;
 
 use crate::browser_sync::BrowserSync;
 
-use crate::server::{Server, Start};
+use crate::server::{Ping, Server, Start};
 use actix::{Actor, Addr};
+use actix_rt::time::delay_for;
 use actix_web::http::StatusCode;
 
 #[derive(Debug, Clone)]
@@ -25,6 +26,7 @@ pub async fn main(
 ) -> anyhow::Result<Addr<Server>> {
     let addr = (Server { spawn_handle: None }).start();
     let add2 = addr.clone();
+    let add3 = addr.clone();
     let add23 = addr.clone();
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     let (tx2, rx2) = tokio::sync::oneshot::channel::<()>();
@@ -62,18 +64,15 @@ pub async fn main(
             Err(e) => eprintln!("err={:?}", e),
         };
     });
-    // actix_rt::spawn(async move {
-    //     println!("creating 2");
-    //     match add2.clone().send(Start).await {
-    //         Ok(rx) => {
-    //             println!("listening...");
-    //             // rx;
-    //             println!("listening done......");
-    //             tx.send(());
-    //         }
-    //         Err(e) => eprintln!("err={:?}", e),
-    //     };
-    // });
+    actix_rt::spawn(async move {
+        delay_for(std::time::Duration::from_secs(2)).await;
+        match add3.send(Ping).await {
+            Ok(_) => {
+                println!("ping sent");
+            }
+            Err(e) => eprintln!("err={:?}", e),
+        };
+    });
     futures::future::select(rx, rx2).await;
     Ok(add23)
 }

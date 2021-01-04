@@ -24,6 +24,18 @@ impl Actor for Server {
 
 #[derive(Message, Debug, Clone)]
 #[rtype(result = "()")]
+pub struct Ping;
+
+impl Handler<Ping> for Server {
+    type Result = ();
+
+    fn handle(&mut self, msg: Ping, ctx: &mut Context<Self>) -> Self::Result {
+        println!("got ping");
+    }
+}
+
+#[derive(Message, Debug, Clone)]
+#[rtype(result = "()")]
 pub struct Start {
     pub bind: String,
 }
