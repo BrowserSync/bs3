@@ -30,6 +30,7 @@ pub async fn main(
     let add23 = addr.clone();
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     let (tx2, rx2) = tokio::sync::oneshot::channel::<()>();
+    // to implement with https://docs.rs/futures/0.3.8/futures/stream/fn.select_all.html
     actix_rt::spawn(async move {
         println!("creating 1");
         match addr
