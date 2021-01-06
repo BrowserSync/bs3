@@ -1,10 +1,9 @@
 use crate::bs_error::BsError;
-use actix::{Actor, AsyncContext, Context, Handler, Message, SpawnHandle, SyncArbiter, WrapFuture};
+use actix::{Actor, AsyncContext, Context, Handler, Message, SpawnHandle, WrapFuture};
 use actix_web::http::StatusCode;
 use actix_web::{App, HttpRequest, HttpResponse, HttpServer};
 use std::future::Future;
 use std::pin::Pin;
-use tokio::sync::oneshot::Receiver;
 
 pub struct Server {
     // pub ws_server: Addr<WsServer>,
@@ -29,7 +28,7 @@ pub struct Ping;
 impl Handler<Ping> for Server {
     type Result = ();
 
-    fn handle(&mut self, msg: Ping, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, _msg: Ping, _ctx: &mut Context<Self>) -> Self::Result {
         println!("got ping");
     }
 }

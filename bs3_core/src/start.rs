@@ -1,5 +1,3 @@
-use actix_web::{App, HttpRequest, HttpResponse, HttpServer};
-
 use tokio::sync::broadcast::Sender;
 
 use crate::browser_sync::BrowserSync;
@@ -7,7 +5,6 @@ use crate::browser_sync::BrowserSync;
 use crate::server::{Ping, Server, Start};
 use actix::{Actor, Addr};
 use actix_rt::time::delay_for;
-use actix_web::http::StatusCode;
 
 #[derive(Debug, Clone)]
 pub enum BrowserSyncMsg {
@@ -31,6 +28,8 @@ pub async fn main(
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     let (tx2, rx2) = tokio::sync::oneshot::channel::<()>();
     // to implement with https://docs.rs/futures/0.3.8/futures/stream/fn.select_all.html
+    // actually, with https://docs.rs/futures/0.3.8/futures/stream/trait.StreamExt.html#method.for_each_concurrent
+    // or https://docs.rs/futures/0.3.8/futures/future/fn.try_join_all.html
     actix_rt::spawn(async move {
         println!("creating 1");
         match addr
@@ -39,7 +38,7 @@ pub async fn main(
             })
             .await
         {
-            Ok(rx) => {
+            Ok(_rx) => {
                 println!("listening...");
                 // rx;
                 println!("listening done......");
@@ -56,7 +55,7 @@ pub async fn main(
             })
             .await
         {
-            Ok(rx) => {
+            Ok(_rx) => {
                 println!("listening...");
                 // rx;
                 println!("listening done......");
