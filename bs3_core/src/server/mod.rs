@@ -1,18 +1,18 @@
 use crate::browser_sync::BrowserSync;
 use crate::bs_error::BsError;
-use actix::{Actor, AsyncContext, Context, Handler, Message, SpawnHandle, WrapFuture};
+use actix::{Actor, AsyncContext, Context, Handler, Message, WrapFuture};
 use actix_web::http::StatusCode;
 use actix_web::{App, HttpRequest, HttpResponse, HttpServer};
+use futures::FutureExt;
 use std::future::Future;
 use std::pin::Pin;
 
 pub struct Server {
     // pub ws_server: Addr<WsServer>,
-    // pub fs_server: Addr<FsWatcher>,
-    // pub served_files: Addr<Served>,
-    // pub port: Option<u16>,
-    // pub bind_address: String,
-    pub(crate) spawn_handle: Option<SpawnHandle>,
+// pub fs_server: Addr<FsWatcher>,
+// pub served_files: Addr<Served>,
+// pub port: Option<u16>,
+// pub bind_address: String,
 }
 
 impl Actor for Server {
@@ -44,7 +44,7 @@ impl Handler<Start> for Server {
     type Result = Pin<Box<dyn Future<Output = ()>>>;
 
     fn handle(&mut self, msg: Start, ctx: &mut Context<Self>) -> Self::Result {
-        println!("got start msg");
+        println!("got start msg for address {}", msg.bs.bind_address());
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
         let exec = async move {
             let server = HttpServer::new(move || App::new().service(welcome));
@@ -59,19 +59,21 @@ impl Handler<Start> for Server {
                 match server.run().await.map_err(BsError::unknown) {
                     Ok(_) => {
                         println!("server All done");
-                        tx.send(());
+                        if let Err(e) = tx.send(()) {
+                            eprintln!("couldn't send final message {:?}", e);
+                        }
                     }
                     Err(e) => {
                         println!("server error e={}", e);
-                        tx.send(());
+                        if let Err(e) = tx.send(()) {
+                            eprintln!("couldn't send final message {:?}", e);
+                        }
                     }
                 }
             }
         };
         ctx.spawn(exec.into_actor(self));
-        Box::pin(async move {
-            rx.await;
-        })
+        Box::pin(async move { rx.map(|_| ()).await })
     }
 }
 

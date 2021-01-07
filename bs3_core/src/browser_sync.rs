@@ -1,4 +1,4 @@
-use crate::config::{default_port, Config};
+use crate::config::{default_port, get_available_port, Config};
 use crate::local_url::LocalUrl;
 use structopt::StructOpt;
 
@@ -35,6 +35,12 @@ impl BrowserSync {
         let config: Config = Config::from_iter_safe(prefix)?;
         let local_url = LocalUrl::try_from_port(config.port.or_else(default_port))?;
         Ok(Self { config, local_url })
+    }
+    pub fn from_random_port() -> Self {
+        let default_port = get_available_port().expect("can take a random default port");
+        let mut bs = Self::default();
+        bs.set_port(default_port);
+        bs
     }
     pub fn set_port(&mut self, port: u16) {
         self.config.port = Some(port);

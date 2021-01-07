@@ -2,11 +2,8 @@ use tokio::sync::broadcast::Sender;
 
 use crate::browser_sync::BrowserSync;
 
-use crate::server::{Ping, Server, Start};
+use crate::server::{Server, Start};
 use actix::{Actor, Addr};
-use actix_rt::time::delay_for;
-use std::future::Future;
-use std::pin::Pin;
 
 #[derive(Debug, Clone)]
 pub enum BrowserSyncMsg {
@@ -23,16 +20,19 @@ pub async fn main(
     browser_sync: BrowserSync,
     _recv: Option<Sender<BrowserSyncMsg>>,
 ) -> anyhow::Result<Addr<Server>> {
-    let addr = (Server { spawn_handle: None }).start();
+    let addr = (Server {}).start();
     let addr2 = addr.clone();
     // to implement with https://docs.rs/futures/0.3.8/futures/stream/fn.select_all.html
     // actually, with https://docs.rs/futures/0.3.8/futures/stream/trait.StreamExt.html#method.for_each_concurrent
     // or https://docs.rs/futures/0.3.8/futures/future/fn.try_join_all.html
-    let bs_items = vec![browser_sync];
+    let bs_default = BrowserSync::from_random_port();
+    let bs_items = vec![browser_sync, bs_default];
+
     let to_futures = bs_items.iter().map(|bs_ref| {
         let addr = addr.clone();
-        Box::pin(async move { addr.send(Start { bs: bs_ref.clone() }).await })
+        addr.send(Start { bs: bs_ref.clone() })
     });
+
     println!("About to watch");
     match futures::future::try_join_all(to_futures).await {
         Ok(vec) => println!("got the output {:?}", vec),
