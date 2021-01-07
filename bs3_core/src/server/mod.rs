@@ -1,9 +1,9 @@
 use crate::browser_sync::BrowserSync;
 use crate::bs_error::BsError;
-use actix::{Actor, AsyncContext, Context, Handler, Message, WrapFuture};
+use actix::{Actor, Context, Handler, Message};
 use actix_web::http::StatusCode;
 use actix_web::{App, HttpRequest, HttpResponse, HttpServer};
-use futures::FutureExt;
+
 use std::future::Future;
 use std::pin::Pin;
 
@@ -43,9 +43,8 @@ pub struct Start {
 impl Handler<Start> for Server {
     type Result = Pin<Box<dyn Future<Output = ()>>>;
 
-    fn handle(&mut self, msg: Start, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: Start, _ctx: &mut Context<Self>) -> Self::Result {
         println!("got start msg for address {}", msg.bs.bind_address());
-        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
         let exec = async move {
             let server = HttpServer::new(move || App::new().service(welcome));
             let server = server
@@ -59,21 +58,14 @@ impl Handler<Start> for Server {
                 match server.run().await.map_err(BsError::unknown) {
                     Ok(_) => {
                         println!("server All done");
-                        if let Err(e) = tx.send(()) {
-                            eprintln!("couldn't send final message {:?}", e);
-                        }
                     }
                     Err(e) => {
                         println!("server error e={}", e);
-                        if let Err(e) = tx.send(()) {
-                            eprintln!("couldn't send final message {:?}", e);
-                        }
                     }
                 }
             }
         };
-        ctx.spawn(exec.into_actor(self));
-        Box::pin(async move { rx.map(|_| ()).await })
+        Box::pin(exec)
     }
 }
 

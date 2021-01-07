@@ -2,8 +2,9 @@ use tokio::sync::broadcast::Sender;
 
 use crate::browser_sync::BrowserSync;
 
-use crate::server::{Server, Start};
+use crate::server::{Ping, Server, Start};
 use actix::{Actor, Addr};
+use actix_rt::time::delay_for;
 
 #[derive(Debug, Clone)]
 pub enum BrowserSyncMsg {
@@ -22,6 +23,9 @@ pub async fn main(
 ) -> anyhow::Result<Addr<Server>> {
     let addr = (Server {}).start();
     let addr2 = addr.clone();
+    let addr3 = addr.clone();
+    let addr4 = addr.clone();
+    let addr5 = addr.clone();
     // to implement with https://docs.rs/futures/0.3.8/futures/stream/fn.select_all.html
     // actually, with https://docs.rs/futures/0.3.8/futures/stream/trait.StreamExt.html#method.for_each_concurrent
     // or https://docs.rs/futures/0.3.8/futures/future/fn.try_join_all.html
@@ -31,6 +35,21 @@ pub async fn main(
     let to_futures = bs_items.iter().map(|bs_ref| {
         let addr = addr.clone();
         addr.send(Start { bs: bs_ref.clone() })
+    });
+
+    actix_rt::spawn(async move {
+        delay_for(std::time::Duration::from_secs(1)).await;
+        addr3.do_send(Ping);
+    });
+
+    actix_rt::spawn(async move {
+        delay_for(std::time::Duration::from_secs(2)).await;
+        addr4.do_send(Ping);
+    });
+
+    actix_rt::spawn(async move {
+        delay_for(std::time::Duration::from_secs(3)).await;
+        addr5.do_send(Ping);
     });
 
     println!("About to watch");
