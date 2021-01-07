@@ -1,3 +1,4 @@
+use crate::browser_sync::BrowserSync;
 use crate::bs_error::BsError;
 use actix::{Actor, AsyncContext, Context, Handler, Message, SpawnHandle, WrapFuture};
 use actix_web::http::StatusCode;
@@ -36,7 +37,7 @@ impl Handler<Ping> for Server {
 #[derive(Message, Debug, Clone)]
 #[rtype(result = "()")]
 pub struct Start {
-    pub bind: String,
+    pub bs: BrowserSync,
 }
 
 impl Handler<Start> for Server {
@@ -48,7 +49,7 @@ impl Handler<Start> for Server {
         let exec = async move {
             let server = HttpServer::new(move || App::new().service(welcome));
             let server = server
-                .bind(msg.bind.clone())
+                .bind(msg.bs.bind_address())
                 .map_err(|e| BsError::CouldNotBind {
                     e: anyhow::anyhow!(e),
                     port: 8080,

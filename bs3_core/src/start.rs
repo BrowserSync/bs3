@@ -5,6 +5,8 @@ use crate::browser_sync::BrowserSync;
 use crate::server::{Ping, Server, Start};
 use actix::{Actor, Addr};
 use actix_rt::time::delay_for;
+use std::future::Future;
+use std::pin::Pin;
 
 #[derive(Debug, Clone)]
 pub enum BrowserSyncMsg {
@@ -18,63 +20,26 @@ pub enum Final {
 }
 
 pub async fn main(
-    _browser_sync: BrowserSync,
+    browser_sync: BrowserSync,
     _recv: Option<Sender<BrowserSyncMsg>>,
 ) -> anyhow::Result<Addr<Server>> {
     let addr = (Server { spawn_handle: None }).start();
-    let add2 = addr.clone();
-    let add3 = addr.clone();
-    let add23 = addr.clone();
-    let (tx, rx) = tokio::sync::oneshot::channel::<()>();
-    let (tx2, rx2) = tokio::sync::oneshot::channel::<()>();
+    let addr2 = addr.clone();
     // to implement with https://docs.rs/futures/0.3.8/futures/stream/fn.select_all.html
     // actually, with https://docs.rs/futures/0.3.8/futures/stream/trait.StreamExt.html#method.for_each_concurrent
     // or https://docs.rs/futures/0.3.8/futures/future/fn.try_join_all.html
-    actix_rt::spawn(async move {
-        println!("creating 1");
-        match addr
-            .send(Start {
-                bind: String::from("127.0.0.1:8080"),
-            })
-            .await
-        {
-            Ok(_rx) => {
-                println!("listening...");
-                // rx;
-                println!("listening done......");
-                tx.send(());
-            }
-            Err(e) => eprintln!("err={:?}", e),
-        };
+    let bs_items = vec![browser_sync];
+    let to_futures = bs_items.iter().map(|bs_ref| {
+        let addr = addr.clone();
+        Box::pin(async move { addr.send(Start { bs: bs_ref.clone() }).await })
     });
-    actix_rt::spawn(async move {
-        println!("creating 1");
-        match add2
-            .send(Start {
-                bind: String::from("127.0.0.1:8081"),
-            })
-            .await
-        {
-            Ok(_rx) => {
-                println!("listening...");
-                // rx;
-                println!("listening done......");
-                tx2.send(());
-            }
-            Err(e) => eprintln!("err={:?}", e),
-        };
-    });
-    actix_rt::spawn(async move {
-        delay_for(std::time::Duration::from_secs(2)).await;
-        match add3.send(Ping).await {
-            Ok(_) => {
-                println!("ping sent");
-            }
-            Err(e) => eprintln!("err={:?}", e),
-        };
-    });
-    futures::future::select(rx, rx2).await;
-    Ok(add23)
+    println!("About to watch");
+    match futures::future::try_join_all(to_futures).await {
+        Ok(vec) => println!("got the output {:?}", vec),
+        Err(err) => println!("got the error {:?}", err),
+    };
+    println!("after");
+    Ok(addr2)
 }
 
 #[cfg(test)]
