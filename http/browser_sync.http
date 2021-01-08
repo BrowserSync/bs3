@@ -62,3 +62,21 @@ Content-Type: application/json
 ###
 
 GET http://localhost:8080
+
+###
+
+POST http://localhost:8090/__bs
+Content-Type: application/json
+
+{
+
+}
+
+###
+
+POST http://localhost:50971/__bs
+Content-Type: application/json
+
+{
+
+}

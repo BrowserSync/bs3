@@ -52,7 +52,6 @@ pub async fn main(
         addr5.do_send(Ping);
     });
 
-    println!("About to watch");
     match futures::future::try_join_all(to_futures).await {
         Ok(vec) => println!("got the output {:?}", vec),
         Err(err) => println!("got the error {:?}", err),

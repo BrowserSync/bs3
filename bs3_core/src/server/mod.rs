@@ -2,8 +2,9 @@ use crate::browser_sync::BrowserSync;
 use crate::bs_error::BsError;
 use actix::{Actor, Context, Handler, Message};
 use actix_web::http::StatusCode;
-use actix_web::{App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 
+use crate::config::Config;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -40,13 +41,26 @@ pub struct Start {
     pub bs: BrowserSync,
 }
 
+/// This handler uses json extractor with limit
+async fn extract_item(item: web::Json<Config>, req: HttpRequest) -> HttpResponse {
+    println!("request: {:?}", req);
+    let inner = item.into_inner();
+    println!("model: {:?}", inner);
+
+    HttpResponse::Ok().json(inner) // <- send json response
+}
+
 impl Handler<Start> for Server {
     type Result = Pin<Box<dyn Future<Output = ()>>>;
 
     fn handle(&mut self, msg: Start, _ctx: &mut Context<Self>) -> Self::Result {
         println!("got start msg for address {}", msg.bs.bind_address());
         let exec = async move {
-            let server = HttpServer::new(move || App::new().service(welcome));
+            let server = HttpServer::new(move || {
+                App::new()
+                    .service(welcome)
+                    .service(web::resource("/__bs").route(web::post().to(extract_item)))
+            });
             let server = server
                 .bind(msg.bs.bind_address())
                 .map_err(|e| BsError::CouldNotBind {
