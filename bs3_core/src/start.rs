@@ -2,9 +2,8 @@ use tokio::sync::broadcast::Sender;
 
 use crate::browser_sync::BrowserSync;
 
-use crate::server::{Ping, Server, Start};
-use actix::{Actor, Addr};
-use actix_rt::time::delay_for;
+use crate::server::{Server, Start};
+use actix::Actor;
 
 #[derive(Debug, Clone)]
 pub enum BrowserSyncMsg {
@@ -20,15 +19,8 @@ pub enum Final {
 pub async fn main(
     browser_sync: BrowserSync,
     _recv: Option<Sender<BrowserSyncMsg>>,
-) -> anyhow::Result<Addr<Server>> {
+) -> anyhow::Result<()> {
     let addr = (Server {}).start();
-    let addr2 = addr.clone();
-    let addr3 = addr.clone();
-    let addr4 = addr.clone();
-    let addr5 = addr.clone();
-    // to implement with https://docs.rs/futures/0.3.8/futures/stream/fn.select_all.html
-    // actually, with https://docs.rs/futures/0.3.8/futures/stream/trait.StreamExt.html#method.for_each_concurrent
-    // or https://docs.rs/futures/0.3.8/futures/future/fn.try_join_all.html
     let bs_default = BrowserSync::from_random_port();
     let bs_items = vec![browser_sync, bs_default];
 
@@ -37,27 +29,10 @@ pub async fn main(
         addr.send(Start { bs: bs_ref.clone() })
     });
 
-    actix_rt::spawn(async move {
-        delay_for(std::time::Duration::from_secs(1)).await;
-        addr3.do_send(Ping);
-    });
-
-    actix_rt::spawn(async move {
-        delay_for(std::time::Duration::from_secs(2)).await;
-        addr4.do_send(Ping);
-    });
-
-    actix_rt::spawn(async move {
-        delay_for(std::time::Duration::from_secs(3)).await;
-        addr5.do_send(Ping);
-    });
-
-    match futures::future::try_join_all(to_futures).await {
-        Ok(vec) => println!("got the output {:?}", vec),
-        Err(err) => println!("got the error {:?}", err),
-    };
-    println!("after");
-    Ok(addr2)
+    futures::future::try_join_all(to_futures)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))
+        .map(|_items| ())
 }
 
 #[cfg(test)]

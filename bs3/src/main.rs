@@ -12,8 +12,8 @@ async fn main() {
             log::debug!("{:#?}", browser_sync);
             let fut = start::main(browser_sync, None);
             match fut.await {
-                Ok(_addr) => {
-                    println!("got addr");
+                Ok(_) => {
+                    println!("all done");
                 }
                 Err(e) => {
                     eprintln!("e={}", e);
