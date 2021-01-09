@@ -2,12 +2,15 @@ use tokio::sync::broadcast::Sender;
 
 use crate::browser_sync::BrowserSync;
 
+use crate::output::StdOut;
 use crate::server::{Server, Start};
-use actix::Actor;
+use actix::{Actor, Message};
 
-#[derive(Debug, Clone)]
-pub enum BrowserSyncMsg {
-    Listening { bs: BrowserSync },
+#[derive(Message, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[rtype(result = "()")]
+#[serde(tag = "kind")]
+pub enum BrowserSyncOutputMsg {
+    Listening { bind_address: String },
 }
 
 #[derive(Debug)]
@@ -18,15 +21,19 @@ pub enum Final {
 
 pub async fn main(
     browser_sync: BrowserSync,
-    _recv: Option<Sender<BrowserSyncMsg>>,
+    _recv: Option<Sender<BrowserSyncOutputMsg>>,
 ) -> anyhow::Result<()> {
-    let addr = (Server {}).start();
+    let std_output = StdOut::default().start();
+    let addr = Server::default().start();
     let _bs_default = BrowserSync::from_random_port();
     let bs_items = vec![browser_sync];
 
-    let to_futures = bs_items.iter().map(|bs_ref| {
-        let addr = addr.clone();
-        addr.send(Start { bs: bs_ref.clone() })
+    let to_futures = bs_items.iter().map(move |bs_ref| {
+        let std_output = std_output.clone();
+        addr.send(Start {
+            bs: bs_ref.clone(),
+            output_recipients: Some(vec![std_output.recipient()]),
+        })
     });
 
     futures::future::try_join_all(to_futures)
