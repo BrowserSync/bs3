@@ -13,7 +13,7 @@ async fn main() {
             let fut = start::main(browser_sync, None);
             match fut.await {
                 Ok(_) => {
-                    println!("all done");
+                    println!("[bs3 bin] all servers closed");
                 }
                 Err(e) => {
                     eprintln!("e={}", e);

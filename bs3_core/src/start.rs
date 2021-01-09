@@ -21,8 +21,8 @@ pub async fn main(
     _recv: Option<Sender<BrowserSyncMsg>>,
 ) -> anyhow::Result<()> {
     let addr = (Server {}).start();
-    let bs_default = BrowserSync::from_random_port();
-    let bs_items = vec![browser_sync, bs_default];
+    let _bs_default = BrowserSync::from_random_port();
+    let bs_items = vec![browser_sync];
 
     let to_futures = bs_items.iter().map(|bs_ref| {
         let addr = addr.clone();

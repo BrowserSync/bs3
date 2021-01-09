@@ -55,6 +55,7 @@ impl Handler<Start> for Server {
 
     fn handle(&mut self, msg: Start, _ctx: &mut Context<Self>) -> Self::Result {
         println!("got start msg for address {}", msg.bs.bind_address());
+        let port_num = msg.bs.config.port.expect("port MUST be defined here");
         let exec = async move {
             let server = HttpServer::new(move || {
                 App::new()
@@ -65,17 +66,22 @@ impl Handler<Start> for Server {
                 .bind(msg.bs.bind_address())
                 .map_err(|e| BsError::CouldNotBind {
                     e: anyhow::anyhow!(e),
-                    port: 8080,
+                    port: port_num,
                 });
-            if let Ok(server) = server {
-                println!("running...");
-                match server.run().await.map_err(BsError::unknown) {
-                    Ok(_) => {
-                        println!("server All done");
+            match server {
+                Ok(server) => {
+                    println!("running...");
+                    match server.run().await.map_err(BsError::unknown) {
+                        Ok(_) => {
+                            println!("server All done");
+                        }
+                        Err(e) => {
+                            println!("server error e={}", e);
+                        }
                     }
-                    Err(e) => {
-                        println!("server error e={}", e);
-                    }
+                }
+                Err(e) => {
+                    eprintln!("error from bind ||||{}||||", e);
                 }
             }
         };
