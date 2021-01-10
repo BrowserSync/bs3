@@ -66,7 +66,7 @@ impl Handler<Start> for Server {
         }
 
         let output_recipients = self.output_recipients.clone();
-        let port_num = msg.bs.config.port.expect("port MUST be defined here");
+        let port_num = msg.bs.local_url.0.port().expect("port MUST be defined here");
         let exec = async move {
             let server = HttpServer::new(move || {
                 App::new()
