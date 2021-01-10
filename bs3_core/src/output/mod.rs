@@ -1,5 +1,6 @@
-use crate::start::BrowserSyncOutputMsg;
-use actix::{Actor, Context, Handler};
+pub mod msg;
+
+use crate::output::msg::BrowserSyncOutputMsg;
 
 pub struct StdOut {
     format: StdOutFormat,
@@ -19,14 +20,20 @@ enum StdOutFormat {
     JsonPretty,
 }
 
-impl Actor for StdOut {
-    type Context = Context<Self>;
+#[cfg(not(target_arch = "wasm32"))]
+impl actix::Actor for StdOut {
+    type Context = actix::Context<Self>;
 }
 
-impl Handler<BrowserSyncOutputMsg> for StdOut {
+#[cfg(not(target_arch = "wasm32"))]
+impl actix::Handler<BrowserSyncOutputMsg> for StdOut {
     type Result = ();
 
-    fn handle(&mut self, msg: BrowserSyncOutputMsg, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(
+        &mut self,
+        msg: BrowserSyncOutputMsg,
+        _ctx: &mut actix::Context<Self>,
+    ) -> Self::Result {
         match self.format {
             StdOutFormat::Human => match msg {
                 BrowserSyncOutputMsg::Listening { bind_address } => {

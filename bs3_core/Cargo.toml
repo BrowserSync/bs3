@@ -9,6 +9,7 @@ edition = "2018"
 [lib]
 name = "bs3_core"
 path = "src/lib.rs"
+#crate-type = ["cdylib"]
 
 [target.'cfg(not(target_arch="wasm32"))'.dependencies]
 bytes = "0.5.6"

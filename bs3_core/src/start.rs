@@ -2,16 +2,10 @@ use tokio::sync::broadcast::Sender;
 
 use crate::browser_sync::BrowserSync;
 
+use crate::output::msg::BrowserSyncOutputMsg;
 use crate::output::StdOut;
 use crate::server::{Server, Start};
-use actix::{Actor, Message};
-
-#[derive(Message, Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[rtype(result = "()")]
-#[serde(tag = "kind")]
-pub enum BrowserSyncOutputMsg {
-    Listening { bind_address: String },
-}
+use actix::Actor;
 
 #[derive(Debug)]
 pub enum Final {

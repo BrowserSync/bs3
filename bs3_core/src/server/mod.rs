@@ -5,7 +5,7 @@ use actix_web::http::StatusCode;
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 
 use crate::config::Config;
-use crate::start::BrowserSyncOutputMsg;
+use crate::output::msg::BrowserSyncOutputMsg;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -66,7 +66,12 @@ impl Handler<Start> for Server {
         }
 
         let output_recipients = self.output_recipients.clone();
-        let port_num = msg.bs.local_url.0.port().expect("port MUST be defined here");
+        let port_num = msg
+            .bs
+            .local_url
+            .0
+            .port()
+            .expect("port MUST be defined here");
         let exec = async move {
             let server = HttpServer::new(move || {
                 App::new()
