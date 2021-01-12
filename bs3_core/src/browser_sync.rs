@@ -36,6 +36,11 @@ impl BrowserSync {
         let local_url = LocalUrl::try_from_port(config.port.or_else(default_port))?;
         Ok(Self { config, local_url })
     }
+    pub fn try_from_json(bs_json: impl Into<String>) -> anyhow::Result<Self> {
+        let config: Config = serde_json::from_str(&bs_json.into())?;
+        let local_url = LocalUrl::try_from_port(config.port.or_else(default_port))?;
+        Ok(Self { config, local_url })
+    }
     pub fn from_random_port() -> Self {
         let default_port = get_available_port().expect("can take a random default port");
         let mut bs = Self::default();
