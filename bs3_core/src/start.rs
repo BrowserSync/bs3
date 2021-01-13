@@ -7,12 +7,6 @@ use crate::output::StdOut;
 use crate::server::{Server, Start};
 use actix::Actor;
 
-#[derive(Debug)]
-pub enum Final {
-    Stopped,
-    Errored(anyhow::Error),
-}
-
 pub async fn main(
     browser_sync: BrowserSync,
     _recv: Option<Sender<BrowserSyncOutputMsg>>,
