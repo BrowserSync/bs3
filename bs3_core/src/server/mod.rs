@@ -1,13 +1,18 @@
+pub mod stop;
+
 use crate::browser_sync::BrowserSync;
 use crate::bs_error::BsError;
 use actix::{Actor, Context, Handler, Message, Recipient};
 use actix_web::http::StatusCode;
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 
-use crate::config::Config;
 use crate::output::msg::BrowserSyncOutputMsg;
+use crate::routes::msg::incoming_msg;
+use actix_rt::time::delay_for;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Mutex;
+use wasm_bindgen::__rt::std::sync::Arc;
 
 #[derive(Default)]
 pub struct Server {
@@ -45,15 +50,6 @@ pub struct Start {
     pub output_recipients: Option<Vec<Recipient<BrowserSyncOutputMsg>>>,
 }
 
-/// This handler uses json extractor with limit
-async fn extract_item(item: web::Json<Config>, req: HttpRequest) -> HttpResponse {
-    println!("request: {:?}", req);
-    let inner = item.into_inner();
-    println!("model: {:?}", inner);
-
-    HttpResponse::Ok().json(inner) // <- send json response
-}
-
 impl Handler<Start> for Server {
     type Result = Pin<Box<dyn Future<Output = ()>>>;
 
@@ -73,10 +69,13 @@ impl Handler<Start> for Server {
             .port()
             .expect("port MUST be defined here");
         let exec = async move {
+            let (stop_sender, mut stop_recv) = tokio::sync::mpsc::channel::<()>(1);
+            let as_arc = Arc::new(Mutex::new(stop_sender));
+
             let server = HttpServer::new(move || {
-                App::new()
-                    .service(welcome)
-                    .service(web::resource("/__bs").route(web::post().to(extract_item)))
+                App::new().data(as_arc.clone()).service(welcome).service(
+                    web::resource("/__bs/incoming_msg").route(web::post().to(incoming_msg)),
+                )
             });
             let server = server
                 .bind(msg.bs.bind_address())
@@ -94,7 +93,17 @@ impl Handler<Start> for Server {
                             eprintln!("could not send binding message {}", sent_err);
                         }
                     });
-                    match server.run().await.map_err(BsError::unknown) {
+                    let s = server.run();
+                    let s2 = s.clone();
+                    actix_rt::spawn(async move {
+                        while let Some(msg) = stop_recv.recv().await {
+                            println!("got a stop");
+                            println!("sending a stop message...");
+                            // delay_for(std::time::Duration::from_secs(1)).await;
+                            s2.stop(true);
+                        }
+                    });
+                    match s.await.map_err(BsError::unknown) {
                         Ok(_) => {
                             println!("server All done");
                         }

@@ -1,12 +1,14 @@
-import { join } from "path";
+import {create} from "./bs";
 
-const CWD = join(__dirname, "../dist");
-const m = require(CWD);
+function init() {
+    const bs = create();
+    bs.start("{}");
+    setTimeout(() => {
+        console.log('stopping via node js api');
+        bs.stop(() => {
+            console.log('stopped via node js api');
+        });
+    }, 2000);
+}
 
-(async () => {
-    console.log("js->before");
-    const r = await m.hello("{}", (str: string) => {
-        console.log("js->cb---after..", str)
-    });
-    console.log("js->after");
-})()
+init();

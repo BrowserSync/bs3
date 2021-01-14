@@ -1,4 +1,19 @@
-GET http://localhost:8080
+GET http://localhost:8090
+
+###
+
+POST http://localhost:8090/__bs/incoming_msg
+Content-Type: application/json
+
+{ "kind":  "Stop" }
+
+###
+
+POST http://localhost:51054/__bs/incoming_msg
+Content-Type: application/json
+
+{ "kind":  "Stop" }
+
 
 ###
 
