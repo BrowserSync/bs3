@@ -15,7 +15,7 @@ pub async fn stop(addr: String) -> Result<(), anyhow::Error> {
             .map_err(|e| anyhow::anyhow!("{:?}", e))?;
 
         // read response body
-        let body = response.body().await?;
+        let _body = response.body().await?;
 
         Ok(())
     })

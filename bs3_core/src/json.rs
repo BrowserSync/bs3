@@ -1,6 +1,5 @@
 use crate::browser_sync::BrowserSync;
 use crate::start;
-use actix_rt::time::delay_for;
 
 pub async fn from_json(json: String) -> Result<(), anyhow::Error> {
     actix_rt::System::new("bs3_core::from_json").block_on(async move {

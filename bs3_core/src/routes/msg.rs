@@ -8,7 +8,7 @@ pub enum IncomingHttpMsg {
 }
 
 /// http handler, should this be elsewhere?
-pub async fn incoming_msg(item: web::Json<IncomingHttpMsg>, req: HttpRequest) -> HttpResponse {
+pub async fn incoming_msg(_item: web::Json<IncomingHttpMsg>, req: HttpRequest) -> HttpResponse {
     let transforms = req
         .app_data::<web::Data<Arc<Mutex<tokio::sync::mpsc::Sender<()>>>>>()
         .map(|t| t.get_ref());
