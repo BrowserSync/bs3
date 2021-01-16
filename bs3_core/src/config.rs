@@ -13,7 +13,6 @@ pub struct Config {
     #[structopt(long = "index")]
     pub index: Option<String>,
     #[structopt(long = "proxy", short = "p")]
-    #[serde(default)]
     pub proxy: Vec<ProxyTarget>,
     #[structopt(parse(from_os_str))]
     #[serde(default)]
@@ -153,23 +152,42 @@ mod tests {
         );
         Ok(())
     }
+
     #[test]
-    fn test_proxy_from_args_error() {
-        let args = "--proxy http:/.example.com";
-        let p = url::Url::parse(args);
-        println!("{}", p.unwrap_err());
-        // let bs = BrowserSync::try_from_args(args.split(" "));
-        // assert!(bs.is_err());
+    fn test_serialize_config() -> anyhow::Result<()> {
+        let args = ". --port 1025 --serve-static node_modules --index index.htm --proxy /gql~http://www.example.com/gql";
+        let bs = BrowserSync::try_from_args(args.split(" "))?;
+        let as_str = serde_json::to_string_pretty(&bs.config)?;
+        assert_eq!(
+            as_str,
+            r#"{
+  "serveStatic": [
+    "node_modules"
+  ],
+  "index": "index.htm",
+  "proxy": [
+    {
+      "target": "http://www.example.com/gql",
+      "paths": [
+        "/gql"
+      ]
+    }
+  ],
+  "trailing_paths": [
+    "."
+  ],
+  "port": 1025
+}"#
+        );
+        Ok(())
     }
     #[test]
-    fn test_proxy_from_json() {
-        let input = r#"
-        {
-          "serveStatic": ["fixtures/src", "fixtures"],
-          "proxies": ["/gql~https://swapi-graphql.netlify.app/.netlify/functions/index"]
-        }
-        "#;
-        let config: Config = serde_json::from_str(input).expect("test");
-        dbg!(config);
+    fn test_deserialize_config() -> anyhow::Result<()> {
+        let args = "--proxy /gql~http://www.example.com/gql";
+        let bs = BrowserSync::try_from_args(args.split(" "))?;
+        let as_str = serde_json::to_string_pretty(&bs.config)?;
+        let as_config = serde_json::from_str::<Config>(&as_str)?;
+        assert_eq!(as_config.proxy.get(0).unwrap().target.path(), "/gql");
+        Ok(())
     }
 }

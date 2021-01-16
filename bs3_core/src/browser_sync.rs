@@ -2,7 +2,7 @@ use crate::config::{default_port, get_available_port, Config};
 use crate::local_url::LocalUrl;
 use structopt::StructOpt;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct BrowserSync {
     /// General configuration like which directories to serve,
     /// which proxies to setup etc
@@ -59,5 +59,19 @@ impl BrowserSync {
             local_url.host_str().expect("this part cannot can't fail"),
             local_url.port().unwrap_or(80)
         )
+    }
+}
+#[cfg(test)]
+mod test {
+    use crate::browser_sync::BrowserSync;
+
+    #[test]
+    fn test_serialise() -> anyhow::Result<()> {
+        let input = ". --proxy /gql~http://example.com/gql";
+        let default = BrowserSync::try_from_args(input.split(' '))?;
+        let as_str = serde_json::to_string_pretty(&default)?;
+        let as_bs = serde_json::from_str::<BrowserSync>(as_str.as_str())?;
+        assert_eq!(as_bs.config.proxy.get(0).unwrap().target.path(), "/gql");
+        Ok(())
     }
 }

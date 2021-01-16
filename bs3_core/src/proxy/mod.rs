@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use serde::{de, Deserialize, Deserializer, Serializer};
+use serde::{de, Serializer};
 
 pub mod proxy_resp_mod;
 pub mod service;
@@ -9,19 +9,30 @@ pub trait Proxy: Default {
     fn proxies(&self) -> Vec<ProxyTarget>;
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ProxyTarget {
-    #[serde(serialize_with = "serialize_proxy")]
+    #[serde(
+        serialize_with = "serialize_proxy",
+        deserialize_with = "deserialize_json_string"
+    )]
     pub target: url::Url,
     pub paths: Vec<std::path::PathBuf>,
 }
 
-fn serialize_proxy<S>(input: &url::Url, serializer: S) -> Result<S::Ok, S::Error>
+pub fn serialize_proxy<S>(input: &url::Url, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
     let as_string = input.to_string();
     serializer.serialize_str(&as_string)
+}
+
+fn deserialize_json_string<'de, D>(deserializer: D) -> Result<url::Url, D::Error>
+where
+    D: de::Deserializer<'de>,
+{
+    let s: &str = de::Deserialize::deserialize(deserializer)?;
+    url::Url::parse(s).map_err(de::Error::custom)
 }
 
 impl FromStr for ProxyTarget {
@@ -58,16 +69,6 @@ impl FromStr for ProxyTarget {
     }
 }
 
-impl<'de> Deserialize<'de> for ProxyTarget {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        FromStr::from_str(&s).map_err(de::Error::custom)
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum ProxyError {
     #[error(
@@ -84,15 +85,42 @@ pub enum ProxyError {
 }
 
 #[test]
-fn test_serialize() {
-    let p =
-        ProxyTarget::from_str("http://www.example.com?hello-there=shane+Osbourne").expect("test");
-    let str = serde_json::to_string_pretty(&p).expect("json");
+fn test_serialize() -> anyhow::Result<()> {
+    let p = ProxyTarget::from_str("http://www.example.com?hello-there=shane+Osbourne")?;
+    let str = serde_json::to_string_pretty(&p)?;
     let expected = r#"{
   "target": "http://www.example.com/?hello-there=shane+Osbourne",
   "paths": []
 }"#;
     assert_eq!(str, expected);
+    Ok(())
+}
+
+#[test]
+fn test_serialize_with_path() -> anyhow::Result<()> {
+    let p = ProxyTarget::from_str("/gql~http://www.example.com/gql")?;
+    let str = serde_json::to_string_pretty(&p)?;
+    let expected = r#"{
+  "target": "http://www.example.com/gql",
+  "paths": [
+    "/gql"
+  ]
+}"#;
+    assert_eq!(str, expected);
+    Ok(())
+}
+
+#[test]
+fn test_deserialize_with_path() -> anyhow::Result<()> {
+    let input = r#"{
+  "target": "http://www.example.com/gql",
+  "paths": [
+    "/gql"
+  ]
+}"#;
+    let str = serde_json::from_str::<ProxyTarget>(&input)?;
+    assert_eq!(str.target.path(), "/gql");
+    Ok(())
 }
 
 #[test]
