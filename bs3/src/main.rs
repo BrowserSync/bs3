@@ -21,7 +21,7 @@ async fn main() {
             }
         }
         Err(err) => {
-            eprintln!("~~~error: {:?}", err);
+            eprintln!("{}", err);
             exit(1);
         }
     };

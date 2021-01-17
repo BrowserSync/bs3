@@ -1,3 +1,4 @@
+use async_graphql::{Object, Union};
 use serde::de;
 use std::fmt;
 use std::path::PathBuf;
@@ -10,11 +11,10 @@ pub trait ServeStatic: Default {
     fn multi_only(&self) -> Vec<Multi>;
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize, Union)]
 #[serde(untagged)]
 pub enum ServeStaticConfig {
-    #[serde(deserialize_with = "deserialize_dir")]
-    DirOnly(PathBuf),
+    DirOnly(DirOnly),
     Multi(Multi),
 }
 
@@ -25,13 +25,42 @@ pub struct Multi {
     pub dir: PathBuf,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct DirOnly {
+    #[serde(deserialize_with = "deserialize_dir")]
+    pub dir: PathBuf,
+}
+
+impl From<PathBuf> for DirOnly {
+    fn from(pb: PathBuf) -> Self {
+        DirOnly { dir: pb }
+    }
+}
+
+#[Object]
+impl Multi {
+    async fn routes(&self) -> Vec<String> {
+        self.routes.clone()
+    }
+    async fn dir(&self) -> String {
+        self.dir.display().to_string()
+    }
+}
+
+#[Object]
+impl DirOnly {
+    async fn dir(&self) -> String {
+        self.dir.display().to_string()
+    }
+}
+
 impl ServeStaticConfig {
     pub fn from_dir_only(path: impl Into<PathBuf>) -> Self {
-        ServeStaticConfig::DirOnly(path.into())
+        ServeStaticConfig::DirOnly(DirOnly::from(path.into()))
     }
     pub fn try_path_buf(item: &str) -> Result<PathBuf, ServeStaticError> {
         match ServeStaticConfig::from_str(item) {
-            Ok(ServeStaticConfig::DirOnly(pb)) => Ok(pb),
+            Ok(ServeStaticConfig::DirOnly(DirOnly { dir })) => Ok(dir),
             Ok(ServeStaticConfig::Multi(..)) => Err(ServeStaticError::Invalid),
             Err(e) => Err(e),
         }
@@ -78,7 +107,7 @@ fn ss_from_str() -> anyhow::Result<()> {
     let ss = ServeStaticConfig::from_str("node_modules")?;
     assert_eq!(
         ss,
-        ServeStaticConfig::DirOnly(PathBuf::from("node_modules"))
+        ServeStaticConfig::DirOnly(DirOnly::from(PathBuf::from("node_modules")))
     );
 
     let ss = ServeStaticConfig::from_str("");
@@ -102,6 +131,11 @@ pub enum ServeStaticError {
     Here's an example of a valid option
 
     --serve-static /node_modules:node_modules
+
+    The following is also valid where the first 3 routes will
+    serve from the same directory
+
+    --serve-static /node_modules:/nm:/nm2:node_modules
     "
     )]
     Empty,
@@ -131,7 +165,7 @@ where
             // let r: Result<PathBuf, _> = Ok();
             // r.map_err(E::custom)
             match ServeStaticConfig::from_str(v) {
-                Ok(ServeStaticConfig::DirOnly(pb)) => Ok(pb),
+                Ok(ServeStaticConfig::DirOnly(DirOnly { dir })) => Ok(dir),
                 _ => unreachable!("should not get here when deserializing a dir - {}", v),
             }
         }

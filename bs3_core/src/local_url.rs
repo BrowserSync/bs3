@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, async_graphql::NewType)]
 pub struct LocalUrl(#[serde(serialize_with = "crate::proxy::serialize_proxy")] pub url::Url);
 
 impl Default for LocalUrl {

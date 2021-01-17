@@ -19,6 +19,19 @@ pub struct ProxyTarget {
     pub paths: Vec<std::path::PathBuf>,
 }
 
+#[async_graphql::Object]
+impl ProxyTarget {
+    async fn target(&self) -> String {
+        self.target.to_string()
+    }
+    async fn paths(&self) -> Vec<String> {
+        self.paths
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect::<Vec<String>>()
+    }
+}
+
 pub fn serialize_proxy<S>(input: &url::Url, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,

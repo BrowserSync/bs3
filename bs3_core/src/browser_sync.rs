@@ -1,8 +1,10 @@
 use crate::config::{default_port, get_available_port, Config};
 use crate::local_url::LocalUrl;
+use async_graphql::SimpleObject;
+use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, SimpleObject)]
 pub struct BrowserSync {
     /// General configuration like which directories to serve,
     /// which proxies to setup etc
@@ -22,11 +24,11 @@ impl BrowserSync {
     /// # use std::path::PathBuf;
     /// # use bs3_core::browser_sync::BrowserSync;
     /// # use crate::bs3_core::serve_static::ServeStatic;
-    /// # use crate::bs3_core::serve_static::ServeStaticConfig;
+    /// # use crate::bs3_core::serve_static::{ServeStaticConfig, DirOnly};
     /// let args = vec!["fixtures/src"].into_iter();
     /// let bs = BrowserSync::try_from_args(args).expect("unpack");
     /// assert_eq!(bs.config.serve_static_config().len(), 1);
-    /// assert_eq!(bs.config.serve_static_config().get(0).expect("test"), &ServeStaticConfig::DirOnly(PathBuf::from("fixtures/src")));
+    /// assert_eq!(bs.config.serve_static_config().get(0).expect("test"), &ServeStaticConfig::DirOnly(DirOnly::from(PathBuf::from("fixtures/src"))));
     /// ```
     pub fn try_from_args(args: impl Iterator<Item = impl Into<String>>) -> anyhow::Result<Self> {
         let mut prefix = vec!["bs".to_string()];

@@ -1,5 +1,6 @@
 use crate::proxy::{Proxy, ProxyTarget};
-use crate::serve_static::{Multi, ServeStatic, ServeStaticConfig};
+use crate::serve_static::{DirOnly, Multi, ServeStatic, ServeStaticConfig};
+
 use serde::{Deserialize, Serialize};
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -46,7 +47,7 @@ impl ServeStatic for Config {
         self.serve_static_config()
             .into_iter()
             .filter_map(|ss| match ss {
-                ServeStaticConfig::DirOnly(pb) => Some(pb),
+                ServeStaticConfig::DirOnly(DirOnly { dir }) => Some(dir),
                 _ => None,
             })
             .collect()
@@ -65,6 +66,16 @@ impl ServeStatic for Config {
 impl Proxy for Config {
     fn proxies(&self) -> Vec<ProxyTarget> {
         self.proxy.clone()
+    }
+}
+
+///
+/// GQL types for [`Config`]
+///
+#[async_graphql::Object]
+impl Config {
+    async fn serve_static(&self) -> Vec<ServeStaticConfig> {
+        self.serve_static_config()
     }
 }
 
