@@ -2,10 +2,7 @@ use crate::routes::gql_mutation::MutationRoot;
 use crate::routes::gql_query::QueryRoot;
 use actix_web::{web, HttpResponse};
 use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
-use async_graphql::{
-    Context, Data, EmptyMutation, EmptySubscription, InterfaceType, Object, OutputType, Schema,
-    Subscription,
-};
+use async_graphql::{EmptySubscription, Schema};
 use async_graphql_actix_web::{Request, Response};
 
 pub type BrowserSyncSchema = Schema<QueryRoot, MutationRoot, EmptySubscription>;

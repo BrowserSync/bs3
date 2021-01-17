@@ -14,7 +14,13 @@ pub async fn incoming_msg(_item: web::Json<IncomingHttpMsg>, req: HttpRequest) -
         .map(|t| t.get_ref());
     if let Some(sender) = transforms {
         let mut m = sender.lock().unwrap();
-        m.send(()).await;
+        match m.send(()).await {
+            Ok(_) => { /* noop */ }
+            Err(e) => eprintln!(
+                "could not send stop message from incoming_msg handler, {}",
+                e
+            ),
+        }
     }
     HttpResponse::Ok().body("OK") // <- send json response
 }

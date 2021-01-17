@@ -140,7 +140,7 @@ impl Handler<Start> for Server {
                             println!("got a stop");
                             println!("sending a stop message...");
                             // delay_for(std::time::Duration::from_secs(1)).await;
-                            s2.stop(true);
+                            s2.stop(true).await;
                             self_addr_clone.do_send(RemoveInstance {
                                 bind_address: bind_address_clone.clone(),
                             });

@@ -1,6 +1,6 @@
 use crate::browser_sync::BrowserSync;
 use crate::routes::gql_models::BrowserSyncServer;
-use async_graphql::{Context, Enum, Object, Result, Schema, Subscription, ID};
+use async_graphql::Context;
 use std::sync::{Arc, Mutex};
 
 pub struct BrowserSyncGraphData {
@@ -9,7 +9,7 @@ pub struct BrowserSyncGraphData {
 
 pub struct QueryRoot;
 
-#[Object]
+#[async_graphql::Object]
 impl QueryRoot {
     async fn servers(&self, ctx: &Context<'_>) -> Vec<BrowserSyncServer> {
         let data = ctx.data_unchecked::<BrowserSyncGraphData>();

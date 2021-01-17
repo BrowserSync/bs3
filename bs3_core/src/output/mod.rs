@@ -15,7 +15,9 @@ impl Default for StdOut {
 }
 
 enum StdOutFormat {
+    #[allow(dead_code)]
     Human,
+    #[allow(dead_code)]
     Json,
     JsonPretty,
 }
