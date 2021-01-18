@@ -1,6 +1,7 @@
 use crate::proxy::{Proxy, ProxyTarget};
 use crate::serve_static::{DirOnly, Multi, ServeStatic, ServeStaticConfig};
 
+use crate::serve_static2::ServeStaticConfig2;
 use serde::{Deserialize, Serialize};
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -10,10 +11,11 @@ use structopt::StructOpt;
 pub struct Config {
     #[serde(rename = "serveStatic")]
     #[structopt(long = "serve-static", short = "ss")]
-    pub serve_static: Option<Vec<ServeStaticConfig>>,
+    pub serve_static: Option<Vec<ServeStaticConfig2>>,
     #[structopt(long = "index")]
     pub index: Option<String>,
     #[structopt(long = "proxy", short = "p")]
+    #[serde(default)]
     pub proxy: Vec<ProxyTarget>,
     #[structopt(parse(from_os_str))]
     #[serde(default)]
@@ -35,31 +37,13 @@ pub fn get_available_port() -> Option<u16> {
 }
 
 impl ServeStatic for Config {
-    fn serve_static_config(&self) -> Vec<ServeStaticConfig> {
+    fn serve_static_config(&self) -> Vec<ServeStaticConfig2> {
         let mut output = vec![];
         for pb in &self.trailing_paths {
             output.push(ServeStaticConfig::from_dir_only(&pb))
         }
         output.extend(self.serve_static.clone().unwrap_or_else(Vec::new));
         output
-    }
-    fn dir_only(&self) -> Vec<PathBuf> {
-        self.serve_static_config()
-            .into_iter()
-            .filter_map(|ss| match ss {
-                ServeStaticConfig::DirOnly(DirOnly { dir }) => Some(dir),
-                _ => None,
-            })
-            .collect()
-    }
-    fn multi_only(&self) -> Vec<Multi> {
-        self.serve_static_config()
-            .into_iter()
-            .filter_map(|ss| match ss {
-                ServeStaticConfig::Multi(multi) => Some(multi),
-                _ => None,
-            })
-            .collect()
     }
 }
 
@@ -95,7 +79,7 @@ mod tests {
                     "routes": ["/node_modules", "react"],
                     "dir": "node_modules"
                 },
-                "static"
+                { "dir": "static" } 
             ],
             "trailing_paths": ["."]
         }

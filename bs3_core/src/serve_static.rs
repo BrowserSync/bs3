@@ -6,9 +6,7 @@ use std::str::FromStr;
 use thiserror::Error;
 
 pub trait ServeStatic: Default {
-    fn serve_static_config(&self) -> Vec<ServeStaticConfig>;
-    fn dir_only(&self) -> Vec<PathBuf>;
-    fn multi_only(&self) -> Vec<Multi>;
+    fn serve_static_config(&self) -> Vec<ServeStaticConfig2>;
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize, Union)]
