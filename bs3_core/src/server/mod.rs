@@ -91,7 +91,7 @@ impl Handler<Start> for Server {
         let arc = self.bs_instances.clone();
         let exec = async move {
             let (stop_sender, mut stop_recv) = tokio::sync::mpsc::channel::<()>(1);
-            let stop_msg = Arc::new(Mutex::new(stop_sender));
+            let stop_msg = Arc::new(tokio::sync::Mutex::new(stop_sender));
             let schema = Schema::build(QueryRoot, MutationRoot, EmptySubscription)
                 .data(BrowserSyncGraphData {
                     bs_instances: arc.clone(),

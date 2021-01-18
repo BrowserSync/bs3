@@ -1,7 +1,8 @@
-use crate::proxy::{Proxy, ProxyTarget};
-use crate::serve_static::{DirOnly, Multi, ServeStatic, ServeStaticConfig};
-
-use crate::serve_static2::ServeStaticConfig2;
+use crate::{
+    proxy::{Proxy, ProxyTarget},
+    serve_static::ServeStatic,
+    serve_static::ServeStaticConfig,
+};
 use serde::{Deserialize, Serialize};
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -11,7 +12,7 @@ use structopt::StructOpt;
 pub struct Config {
     #[serde(rename = "serveStatic")]
     #[structopt(long = "serve-static", short = "ss")]
-    pub serve_static: Option<Vec<ServeStaticConfig2>>,
+    pub serve_static: Option<Vec<ServeStaticConfig>>,
     #[structopt(long = "index")]
     pub index: Option<String>,
     #[structopt(long = "proxy", short = "p")]
@@ -37,7 +38,7 @@ pub fn get_available_port() -> Option<u16> {
 }
 
 impl ServeStatic for Config {
-    fn serve_static_config(&self) -> Vec<ServeStaticConfig2> {
+    fn serve_static_config(&self) -> Vec<ServeStaticConfig> {
         let mut output = vec![];
         for pb in &self.trailing_paths {
             output.push(ServeStaticConfig::from_dir_only(&pb))
@@ -79,7 +80,7 @@ mod tests {
                     "routes": ["/node_modules", "react"],
                     "dir": "node_modules"
                 },
-                { "dir": "static" } 
+                { "dir": "static" }
             ],
             "trailing_paths": ["."]
         }
@@ -89,10 +90,10 @@ mod tests {
         assert_eq!(
             vec![
                 ServeStaticConfig::from_dir_only("."),
-                ServeStaticConfig::Multi(Multi {
-                    dir: PathBuf::from("node_modules"),
-                    routes: vec![String::from("/node_modules"), String::from("react")]
-                }),
+                ServeStaticConfig::new(
+                    "node_modules",
+                    Some(vec![String::from("/node_modules"), String::from("react")])
+                ),
                 ServeStaticConfig::from_dir_only("static"),
             ],
             ss
@@ -120,13 +121,14 @@ mod tests {
         let args = ". --serve-static node_modules:fixtures/node_modules";
         let bs = BrowserSync::try_from_args(args.split(" "))?;
         let ss = bs.config.serve_static_config();
+        dbg!(&ss);
         assert_eq!(
             vec![
                 ServeStaticConfig::from_dir_only("."),
-                ServeStaticConfig::Multi(Multi {
-                    dir: PathBuf::from("fixtures/node_modules"),
-                    routes: vec![String::from("node_modules")]
-                }),
+                ServeStaticConfig::new(
+                    "fixtures/node_modules",
+                    Some(vec![String::from("node_modules")])
+                ),
             ],
             ss
         );
@@ -157,7 +159,10 @@ mod tests {
             as_str,
             r#"{
   "serveStatic": [
-    "node_modules"
+    {
+      "routes": null,
+      "dir": "node_modules"
+    }
   ],
   "index": "index.htm",
   "proxy": [
@@ -176,6 +181,7 @@ mod tests {
         );
         Ok(())
     }
+
     #[test]
     fn test_deserialize_config() -> anyhow::Result<()> {
         let args = "--proxy /gql~http://www.example.com/gql";

@@ -1,5 +1,5 @@
 use actix_web::{web, HttpRequest, HttpResponse};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", content = "payload")]
@@ -10,17 +10,20 @@ pub enum IncomingHttpMsg {
 /// http handler, should this be elsewhere?
 pub async fn incoming_msg(_item: web::Json<IncomingHttpMsg>, req: HttpRequest) -> HttpResponse {
     let transforms = req
-        .app_data::<web::Data<Arc<Mutex<tokio::sync::mpsc::Sender<()>>>>>()
+        .app_data::<web::Data<Arc<tokio::sync::Mutex<tokio::sync::mpsc::Sender<()>>>>>()
         .map(|t| t.get_ref());
     if let Some(sender) = transforms {
-        let mut m = sender.lock().unwrap();
-        match m.send(()).await {
-            Ok(_) => { /* noop */ }
-            Err(e) => eprintln!(
-                "could not send stop message from incoming_msg handler, {}",
-                e
-            ),
-        }
+        let c = sender.clone();
+        actix_rt::spawn(async move {
+            let mut m = c.lock().await;
+            match m.send(()).await {
+                Ok(_) => { /* noop */ }
+                Err(e) => eprintln!(
+                    "could not send stop message from incoming_msg handler, {}",
+                    e
+                ),
+            }
+        });
     }
     HttpResponse::Ok().body("OK") // <- send json response
 }

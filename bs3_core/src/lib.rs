@@ -46,8 +46,5 @@ mod output;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod json;
 
-#[cfg(not(target_arch = "wasm32"))]
-pub mod serve_static2;
-
 #[cfg(target_arch = "wasm32")]
 pub fn main() {}

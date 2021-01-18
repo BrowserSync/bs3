@@ -17,19 +17,6 @@ pub struct BrowserSync {
 impl BrowserSync {
     ///
     /// Convert CLI-like arguments into valid configuration
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::path::PathBuf;
-    /// # use bs3_core::browser_sync::BrowserSync;
-    /// # use crate::bs3_core::serve_static::ServeStatic;
-    /// # use crate::bs3_core::serve_static::{ServeStaticConfig, DirOnly};
-    /// let args = vec!["fixtures/src"].into_iter();
-    /// let bs = BrowserSync::try_from_args(args).expect("unpack");
-    /// assert_eq!(bs.config.serve_static_config().len(), 1);
-    /// assert_eq!(bs.config.serve_static_config().get(0).expect("test"), &ServeStaticConfig::DirOnly(DirOnly::from(PathBuf::from("fixtures/src"))));
-    /// ```
     pub fn try_from_args(args: impl Iterator<Item = impl Into<String>>) -> anyhow::Result<Self> {
         let mut prefix = vec!["bs".to_string()];
         let args = args.into_iter().map(|m| m.into()).collect::<Vec<String>>();
