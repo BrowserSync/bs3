@@ -48,10 +48,7 @@ impl FromStr for ServeStaticConfig {
                 }
             }
             [rs @ .., dir] => {
-                let as_routes = rs
-                    .iter()
-                    .map(|s| PathBuf::from(s))
-                    .collect::<Vec<PathBuf>>();
+                let as_routes = rs.iter().map(PathBuf::from).collect::<Vec<PathBuf>>();
                 let dir = PathBuf::from(dir);
                 Ok(ServeStaticConfig {
                     routes: Some(as_routes),

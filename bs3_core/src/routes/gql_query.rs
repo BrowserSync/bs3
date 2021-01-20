@@ -13,7 +13,7 @@ impl QueryRoot {
     async fn servers(&self, ctx: &Context<'_>) -> Vec<BrowserSync> {
         let data = ctx.data_unchecked::<BrowserSyncGraphData>();
         let items = data.bs_instances.lock().unwrap();
-        items.iter().map(|bs| bs.clone()).collect()
+        items.iter().cloned().collect()
     }
     async fn server_by_port(&self, ctx: &Context<'_>, port: u16) -> Vec<BrowserSync> {
         println!("port={}", port);
@@ -22,7 +22,7 @@ impl QueryRoot {
         items
             .iter()
             .filter(|bs| bs.local_url.0.port().expect("must have a port") == port)
-            .map(|bs| bs.clone())
+            .cloned()
             .collect()
     }
 }

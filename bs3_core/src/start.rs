@@ -1,20 +1,13 @@
-use tokio::sync::broadcast::Sender;
-
 use crate::browser_sync::BrowserSync;
 
-use crate::output::msg::BrowserSyncOutputMsg;
 use crate::output::StdOut;
 use crate::server::{Server, Start};
 use actix::Actor;
 
-pub async fn main(
-    browser_sync: BrowserSync,
-    _recv: Option<Sender<BrowserSyncOutputMsg>>,
-) -> anyhow::Result<()> {
+pub async fn main(bs_items: Vec<BrowserSync>) -> anyhow::Result<()> {
     let std_output = StdOut::default().start();
     let addr = Server::default().start();
-    let bs_default = BrowserSync::from_random_port();
-    let bs_items = vec![browser_sync, bs_default];
+    // let bs_default = BrowserSync::from_random_port();
 
     let to_futures = bs_items.iter().map(move |bs_ref| {
         let std_output = std_output.clone();

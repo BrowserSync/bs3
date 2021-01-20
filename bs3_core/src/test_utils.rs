@@ -95,7 +95,7 @@ fn runner(
                 .send(ServerMsg::Listening(bs.local_url.0.clone()))
                 .await
                 .expect("can send listening message");
-            match main(bs.clone(), None).await {
+            match main(vec![bs.clone()]).await {
                 Ok(_) => log::trace!("server closed cleanly"),
                 Err(e) => log::error!("{}", e),
             };

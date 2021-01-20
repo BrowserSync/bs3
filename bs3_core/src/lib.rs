@@ -44,7 +44,7 @@ pub mod server;
 mod output;
 
 #[cfg(not(target_arch = "wasm32"))]
-pub mod json;
+pub mod entry;
 
 #[cfg(target_arch = "wasm32")]
 pub fn main() {}

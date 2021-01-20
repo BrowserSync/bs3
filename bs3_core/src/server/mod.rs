@@ -68,7 +68,6 @@ impl Handler<Start> for Server {
     fn handle(&mut self, msg: Start, ctx: &mut Context<Self>) -> Self::Result {
         log::trace!("got start msg for address {}", msg.bs.bind_address());
         let self_addr = ctx.address();
-        let self_addr_clone = self_addr.clone();
         let bind_address_clone = msg.bs.bind_address().clone();
 
         {
@@ -142,7 +141,7 @@ impl Handler<Start> for Server {
                             println!("sending a stop message...");
                             // delay_for(std::time::Duration::from_secs(1)).await;
                             s2.stop(false).await;
-                            self_addr_clone.do_send(RemoveInstance {
+                            self_addr.do_send(RemoveInstance {
                                 bind_address: bind_address_clone.clone(),
                             });
                         }

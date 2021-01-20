@@ -2,7 +2,7 @@ use node_bindgen::derive::node_bindgen;
 
 #[node_bindgen]
 async fn start<F: Fn(String)>(bs_json: String, cb: F) {
-    match bs3_core::json::from_json(bs_json).await {
+    match bs3_core::entry::from_json(bs_json).await {
         Ok(_) => {
             // println!("all good in fn start")
         }
