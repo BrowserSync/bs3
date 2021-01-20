@@ -96,6 +96,7 @@ impl Handler<Start> for Server {
                 .data(BrowserSyncGraphData {
                     bs_instances: arc.clone(),
                 })
+                .data(stop_msg.clone())
                 .finish();
 
             let server = HttpServer::new(move || {
@@ -140,7 +141,7 @@ impl Handler<Start> for Server {
                             println!("got a stop");
                             println!("sending a stop message...");
                             // delay_for(std::time::Duration::from_secs(1)).await;
-                            s2.stop(true).await;
+                            s2.stop(false).await;
                             self_addr_clone.do_send(RemoveInstance {
                                 bind_address: bind_address_clone.clone(),
                             });

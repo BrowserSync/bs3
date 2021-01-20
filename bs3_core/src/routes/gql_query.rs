@@ -15,4 +15,14 @@ impl QueryRoot {
         let items = data.bs_instances.lock().unwrap();
         items.iter().map(|bs| bs.clone()).collect()
     }
+    async fn server_by_port(&self, ctx: &Context<'_>, port: u16) -> Vec<BrowserSync> {
+        println!("port={}", port);
+        let data = ctx.data_unchecked::<BrowserSyncGraphData>();
+        let items = data.bs_instances.lock().unwrap();
+        items
+            .iter()
+            .filter(|bs| bs.local_url.0.port().expect("must have a port") == port)
+            .map(|bs| bs.clone())
+            .collect()
+    }
 }

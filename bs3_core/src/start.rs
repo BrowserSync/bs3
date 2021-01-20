@@ -13,8 +13,8 @@ pub async fn main(
 ) -> anyhow::Result<()> {
     let std_output = StdOut::default().start();
     let addr = Server::default().start();
-    // let bs_default = BrowserSync::from_random_port();
-    let bs_items = vec![browser_sync /*bs_default*/];
+    let bs_default = BrowserSync::from_random_port();
+    let bs_items = vec![browser_sync, bs_default];
 
     let to_futures = bs_items.iter().map(move |bs_ref| {
         let std_output = std_output.clone();
