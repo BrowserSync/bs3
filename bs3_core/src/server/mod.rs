@@ -91,12 +91,15 @@ impl Handler<Start> for Server {
         let exec = async move {
             let (stop_sender, mut stop_recv) = tokio::sync::mpsc::channel::<()>(1);
             let stop_msg = Arc::new(tokio::sync::Mutex::new(stop_sender));
-            let schema = Schema::build(QueryRoot, MutationRoot, EmptySubscription)
-                .data(BrowserSyncGraphData {
-                    bs_instances: arc.clone(),
-                })
-                .data(stop_msg.clone())
-                .finish();
+            let schema: Schema<QueryRoot, MutationRoot, EmptySubscription> =
+                Schema::build(QueryRoot, MutationRoot, EmptySubscription)
+                    .data(BrowserSyncGraphData {
+                        bs_instances: arc.clone(),
+                    })
+                    .data(stop_msg.clone())
+                    .finish();
+
+            // println!("schema{}", schema());
 
             let server = HttpServer::new(move || {
                 App::new()

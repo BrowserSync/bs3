@@ -1,13 +1,13 @@
 use async_graphql::{Context, Result as GqlResult};
 use std::sync::Arc;
+use tokio::sync::{mpsc::Sender, Mutex};
 
 pub struct MutationRoot;
 
 #[async_graphql::Object]
 impl MutationRoot {
     async fn stop(&self, ctx: &Context<'_>) -> GqlResult<MutationResult> {
-        let stop_sender =
-            ctx.data_unchecked::<Arc<tokio::sync::Mutex<tokio::sync::mpsc::Sender<()>>>>();
+        let stop_sender = ctx.data_unchecked::<Arc<Mutex<Sender<()>>>>();
 
         // Access the stop message sender
         let mut m = stop_sender.lock().await;
