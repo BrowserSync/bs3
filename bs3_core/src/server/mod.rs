@@ -121,6 +121,7 @@ impl Handler<Start> for Server {
                     )
             });
             let server = server
+                .disable_signals()
                 .bind(msg.bs.bind_address())
                 .map_err(|e| BsError::CouldNotBind {
                     e: anyhow::anyhow!(e),

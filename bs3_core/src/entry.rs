@@ -5,8 +5,7 @@ pub async fn from_json(json: String) -> Result<(), anyhow::Error> {
     actix_rt::System::new("bs3_core::from_json").block_on(async move {
         let bs = BrowserSync::try_from_json(json)?;
         let items = vec![bs];
-        let fut = start::main(items);
-        fut.await
+        start::main(items).await
     })
 }
 
