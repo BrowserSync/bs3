@@ -58,7 +58,12 @@ impl Handler<RemoveInstance> for Server {
 #[rtype(result = "Result<(), anyhow::Error>")]
 pub struct Start {
     pub bs: BrowserSync,
-    pub output_recipients: Option<Vec<Recipient<BrowserSyncOutputMsg>>>,
+}
+
+impl Start {
+    pub fn new(bs: BrowserSync) -> Self {
+        Self { bs }
+    }
 }
 
 impl Handler<Start> for Server {
@@ -75,11 +80,11 @@ impl Handler<Start> for Server {
         }
 
         // if the start message contains a recipient, add it to the locally saved ones
-        if let Some(recipients) = msg.output_recipients.as_ref() {
-            self.output_recipients.extend(recipients.clone());
-        }
+        // if let Some(recipients) = msg.output_recipients.as_ref() {
+        //     self.output_recipients.extend(recipients.clone());
+        // }
+        // let output_recipients = self.output_recipients.clone();
 
-        let output_recipients = self.output_recipients.clone();
         let bs_instances_arc = self.bs_instances.clone();
 
         let exec = async move {
@@ -120,16 +125,24 @@ impl Handler<Start> for Server {
                 .bind(msg.bs.bind_address())
                 .map_err(|e| BsError::could_not_bind(port_num, e))?;
 
-            output_recipients.iter().for_each(|recipient| {
-                let sent = recipient.do_send(BrowserSyncOutputMsg::Listening {
-                    bind_address: msg.bs.bind_address(),
-                });
-                if let Err(sent_err) = sent {
-                    eprintln!("could not send binding message {}", sent_err);
-                }
-            });
+            // output_recipients.iter().for_each(|recipient| {
+            //     let sent = recipient.do_send(BrowserSyncOutputMsg::Listening {
+            //         bind_address: msg.bs.bind_address(),
+            //     });
+            //     if let Err(sent_err) = sent {
+            //         eprintln!("could not send binding message {}", sent_err);
+            //     }
+            // });
+
             let s = server.run();
             let s2 = s.clone();
+
+            self_addr.do_send(NotifyRecipientsMsg {
+                messages: vec![BrowserSyncOutputMsg::Listening {
+                    bind_address: msg.bs.bind_address(),
+                }],
+            });
+
             actix_rt::spawn(async move {
                 while let Some(_msg) = stop_recv.recv().await {
                     println!("got a stop");
@@ -156,24 +169,52 @@ impl Handler<Start> for Server {
     }
 }
 
+#[derive(Message, Debug, Clone)]
+#[rtype(result = "()")]
+pub struct RegisterRecipientMsg {
+    pub output_recipients: Vec<Recipient<BrowserSyncOutputMsg>>,
+}
+
+impl RegisterRecipientMsg {
+    pub fn new(recipient: Recipient<BrowserSyncOutputMsg>) -> Self {
+        RegisterRecipientMsg {
+            output_recipients: vec![recipient],
+        }
+    }
+}
+
+impl Handler<RegisterRecipientMsg> for Server {
+    type Result = ();
+
+    fn handle(&mut self, msg: RegisterRecipientMsg, _ctx: &mut Context<Self>) -> Self::Result {
+        self.output_recipients.extend(msg.output_recipients);
+    }
+}
+
+#[derive(Message, Debug, Clone)]
+#[rtype(result = "()")]
+pub struct NotifyRecipientsMsg {
+    pub messages: Vec<BrowserSyncOutputMsg>,
+}
+
+impl Handler<NotifyRecipientsMsg> for Server {
+    type Result = ();
+
+    fn handle(&mut self, msg: NotifyRecipientsMsg, _ctx: &mut Context<Self>) -> Self::Result {
+        self.output_recipients.iter().for_each(|recipient| {
+            msg.messages.iter().for_each(|msg| {
+                let sent = recipient.do_send(msg.clone());
+                if let Err(sent_err) = sent {
+                    eprintln!("could not send binding message {}", sent_err);
+                }
+            });
+        });
+    }
+}
+
 // fn get() -> Pin<Box<impl Future<Output = Result<(), anyhow::Error>>>> {
 //     Box::pin(async move { Ok(()) })
 // }
-
-#[derive(Message, Debug, Clone)]
-#[rtype(result = "String")]
-pub enum ServerIncoming {
-    Stop,
-}
-
-impl Handler<ServerIncoming> for Server {
-    type Result = String;
-
-    fn handle(&mut self, _msg: ServerIncoming, _ctx: &mut Context<Self>) -> Self::Result {
-        println!("Received a STOP message...");
-        String::from("hahaha")
-    }
-}
 
 impl std::fmt::Debug for Server {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

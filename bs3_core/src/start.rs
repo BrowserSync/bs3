@@ -1,22 +1,25 @@
 use crate::browser_sync::BrowserSync;
 
 use crate::output::StdOut;
-use crate::server::{Server, Start};
+use crate::server::{RegisterRecipientMsg, Server, Start};
 use actix::Actor;
 
 pub async fn main(bs_items: Vec<BrowserSync>) -> anyhow::Result<()> {
     let std_output = StdOut::default().start();
     let addr = Server::default().start();
+    let add_c = addr.clone();
+
     // let bs_default = BrowserSync::from_random_port();
+    let to_futures = bs_items
+        .iter()
+        .map(move |bs_ref| addr.send(Start::new(bs_ref.to_owned())));
 
-    let to_futures = bs_items.iter().map(move |bs_ref| {
-        let std_output = std_output.clone();
-        addr.send(Start {
-            bs: bs_ref.clone(),
-            output_recipients: Some(vec![std_output.recipient()]),
-        })
-    });
+    log::trace!("sending RegisterRecipient with stdout");
+    add_c
+        .send(RegisterRecipientMsg::new(std_output.recipient()))
+        .await?;
 
+    log::trace!("now awaiting all futures from server...");
     futures::future::try_join_all(to_futures)
         .await
         .map_err(|e| anyhow::anyhow!(e))
