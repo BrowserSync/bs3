@@ -14,4 +14,11 @@ impl BsError {
     ) -> anyhow::Error {
         BsError::Unknown { e: e.into() }.into()
     }
+    pub fn could_not_bind(port: u16, e: std::io::Error) -> anyhow::Error {
+        BsError::CouldNotBind {
+            e: anyhow::anyhow!(e),
+            port,
+        }
+        .into()
+    }
 }

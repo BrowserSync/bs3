@@ -7,10 +7,9 @@ use actix_web::http::StatusCode;
 use actix_web::{guard, web, App, HttpRequest, HttpResponse, HttpServer};
 
 use crate::output::msg::BrowserSyncOutputMsg;
-use crate::routes::gql::{gql_playgound, gql_response};
+use crate::routes::gql::{gql_playgound, gql_response, GQL_ENDPOINT};
 use crate::routes::gql_mutation::MutationRoot;
 use crate::routes::gql_query::{BrowserSyncGraphData, QueryRoot};
-use crate::routes::msg::incoming_msg;
 
 use async_graphql::{EmptySubscription, Schema};
 use std::future::Future;
@@ -56,14 +55,14 @@ impl Handler<RemoveInstance> for Server {
 }
 
 #[derive(Message, Debug, Clone)]
-#[rtype(result = "()")]
+#[rtype(result = "Result<(), anyhow::Error>")]
 pub struct Start {
     pub bs: BrowserSync,
     pub output_recipients: Option<Vec<Recipient<BrowserSyncOutputMsg>>>,
 }
 
 impl Handler<Start> for Server {
-    type Result = Pin<Box<dyn Future<Output = ()>>>;
+    type Result = Pin<Box<dyn Future<Output = Result<(), anyhow::Error>>>>;
 
     fn handle(&mut self, msg: Start, ctx: &mut Context<Self>) -> Self::Result {
         log::trace!("got start msg for address {}", msg.bs.bind_address());
@@ -81,92 +80,85 @@ impl Handler<Start> for Server {
         }
 
         let output_recipients = self.output_recipients.clone();
-        let port_num = msg
-            .bs
-            .local_url
-            .0
-            .port()
-            .expect("port MUST be defined here");
-        let arc = self.bs_instances.clone();
+        let bs_instances_arc = self.bs_instances.clone();
+
         let exec = async move {
+            let port_num = msg
+                .bs
+                .local_url
+                .0
+                .port()
+                .expect("port MUST be defined here");
             let (stop_sender, mut stop_recv) = tokio::sync::mpsc::channel::<()>(1);
             let stop_msg = Arc::new(tokio::sync::Mutex::new(stop_sender));
             let schema: Schema<QueryRoot, MutationRoot, EmptySubscription> =
                 Schema::build(QueryRoot, MutationRoot, EmptySubscription)
                     .data(BrowserSyncGraphData {
-                        bs_instances: arc.clone(),
+                        bs_instances: bs_instances_arc.clone(),
                     })
                     .data(stop_msg.clone())
                     .finish();
-
-            // println!("schema{}", schema());
 
             let server = HttpServer::new(move || {
                 App::new()
                     .data(schema.clone())
                     .data(stop_msg.clone())
                     .service(
-                        web::resource("/__bs/graphql")
+                        web::resource(GQL_ENDPOINT)
                             .guard(guard::Post())
                             .to(gql_response),
                     )
                     .service(
-                        web::resource("/__bs/graphql")
+                        web::resource(GQL_ENDPOINT)
                             .guard(guard::Get())
                             .to(gql_playgound),
                     )
                     .service(welcome)
-                    .service(
-                        web::resource("/__bs/incoming_msg").route(web::post().to(incoming_msg)),
-                    )
             });
             let server = server
                 .disable_signals()
                 .bind(msg.bs.bind_address())
-                .map_err(|e| BsError::CouldNotBind {
-                    e: anyhow::anyhow!(e),
-                    port: port_num,
+                .map_err(|e| BsError::could_not_bind(port_num, e))?;
+
+            output_recipients.iter().for_each(|recipient| {
+                let sent = recipient.do_send(BrowserSyncOutputMsg::Listening {
+                    bind_address: msg.bs.bind_address(),
                 });
-            match server {
-                Ok(server) => {
-                    output_recipients.iter().for_each(|recipient| {
-                        let sent = recipient.do_send(BrowserSyncOutputMsg::Listening {
-                            bind_address: msg.bs.bind_address(),
-                        });
-                        if let Err(sent_err) = sent {
-                            eprintln!("could not send binding message {}", sent_err);
-                        }
+                if let Err(sent_err) = sent {
+                    eprintln!("could not send binding message {}", sent_err);
+                }
+            });
+            let s = server.run();
+            let s2 = s.clone();
+            actix_rt::spawn(async move {
+                while let Some(_msg) = stop_recv.recv().await {
+                    println!("got a stop");
+                    println!("sending a stop message...");
+                    // delay_for(std::time::Duration::from_secs(1)).await;
+                    s2.stop(false).await;
+                    self_addr.do_send(RemoveInstance {
+                        bind_address: bind_address_clone.clone(),
                     });
-                    let s = server.run();
-                    let s2 = s.clone();
-                    actix_rt::spawn(async move {
-                        while let Some(_msg) = stop_recv.recv().await {
-                            println!("got a stop");
-                            println!("sending a stop message...");
-                            // delay_for(std::time::Duration::from_secs(1)).await;
-                            s2.stop(false).await;
-                            self_addr.do_send(RemoveInstance {
-                                bind_address: bind_address_clone.clone(),
-                            });
-                        }
-                    });
-                    match s.await.map_err(BsError::unknown) {
-                        Ok(_) => {
-                            println!("server All done");
-                        }
-                        Err(e) => {
-                            println!("server error e={}", e);
-                        }
-                    }
+                }
+            });
+            match s.await.map_err(BsError::unknown) {
+                Ok(_) => {
+                    println!("server all done on port {}", port_num);
                 }
                 Err(e) => {
-                    eprintln!("error from bind ||||{}||||", e);
+                    println!("server error on port {}", port_num);
+                    eprintln!("\t{:?}", e);
                 }
-            }
+            };
+            Ok(())
         };
         Box::pin(exec)
     }
 }
+
+// fn get() -> Pin<Box<impl Future<Output = Result<(), anyhow::Error>>>> {
+//     Box::pin(async move { Ok(()) })
+// }
 
 #[derive(Message, Debug, Clone)]
 #[rtype(result = "String")]
