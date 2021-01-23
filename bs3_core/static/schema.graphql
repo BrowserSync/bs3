@@ -1,0 +1,42 @@
+type QueryRoot {
+	servers: [BrowserSync!]!
+	serverByPort(port: Int!): [BrowserSync!]!
+}
+type BrowserSync {
+	"""
+	General configuration like which directories to serve,
+	which proxies to setup etc
+	"""
+	config: Config!
+	"""
+	The local url/address that Browsersync will try to bind to when running the server
+	eg: http://0.0.0.0:8080
+	"""
+	localUrl: Url!
+}
+"""
+GQL types for [`Config`]
+
+"""
+type Config {
+	serveStatic: [ServeStaticConfig!]!
+}
+"""
+GQL types for serve static config
+
+"""
+type ServeStaticConfig {
+	routes: [String!]!
+	dir: String!
+}
+scalar Url
+type MutationRoot {
+	stop: MutationResult!
+}
+enum MutationResult {
+	STOPPED
+}
+schema {
+	query: QueryRoot
+	mutation: MutationRoot
+}

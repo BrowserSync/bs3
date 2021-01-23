@@ -1,0 +1,16 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="schema-gen" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+    <option name="command" value="run --bin bs3 --features print-gql-schema --manifest-path=bs3/Cargo.toml" />
+    <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+    <option name="channel" value="DEFAULT" />
+    <option name="allFeatures" value="true" />
+    <option name="emulateTerminal" value="true" />
+    <option name="backtrace" value="SHORT" />
+    <envs />
+    <option name="isRedirectInput" value="false" />
+    <option name="redirectInputPath" value="" />
+    <method v="2">
+      <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+    </method>
+  </configuration>
+</component>

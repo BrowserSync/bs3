@@ -19,6 +19,7 @@ actix-web-actors = "3"
 actix-rt = "1.1.1"
 actix_multi = { path = "../actix_multi", version = "0.1.0" }
 bs3_files = { path = "../bs3_files", version = "0.0.1" }
+cynic = "0.11.0"
 actix-service = "1.0.6"
 env_logger = "0.8.1"
 flate2 = "1.0.19"

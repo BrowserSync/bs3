@@ -1,0 +1,16 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="fix" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+    <option name="command" value="fix --allow-dirty --allow-staged &amp;&amp; cargo fmt" />
+    <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+    <option name="channel" value="DEFAULT" />
+    <option name="allFeatures" value="true" />
+    <option name="emulateTerminal" value="true" />
+    <option name="backtrace" value="SHORT" />
+    <envs />
+    <option name="isRedirectInput" value="false" />
+    <option name="redirectInputPath" value="" />
+    <method v="2">
+      <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+    </method>
+  </configuration>
+</component>

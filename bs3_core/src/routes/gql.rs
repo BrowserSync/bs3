@@ -19,3 +19,12 @@ pub async fn gql_playgound() -> HttpResponse {
             GraphQLPlaygroundConfig::new(GQL_ENDPOINT).subscription_endpoint(GQL_ENDPOINT),
         ))
 }
+
+pub fn get_schema() -> BrowserSyncSchema {
+    Schema::build(QueryRoot, MutationRoot, EmptySubscription).finish()
+}
+
+pub fn print() -> String {
+    let s = get_schema();
+    s.sdl()
+}

@@ -5,6 +5,8 @@ cargo clippy
 cargo check
 cargo test --workspace --exclude bs3_ffi
 
+cargo run --bin bs3 --features print-schema --manifest-path=bs3/Cargo.toml
+
 cd bs3_core
 sed -i.bak 's/#crate-type/crate-type/' Cargo.toml
 wasm-pack build --dev
