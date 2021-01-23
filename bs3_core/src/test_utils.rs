@@ -92,7 +92,7 @@ fn runner(
         let (mut server_tx, mut server_rx) = tokio::sync::mpsc::channel::<ServerMsg>(1);
         actix_rt::spawn(async move {
             server_tx
-                .send(ServerMsg::Listening(bs.local_url.0.clone()))
+                .send(ServerMsg::Listening(bs.local_url.inner.clone()))
                 .await
                 .expect("can send listening message");
             match main(vec![bs.clone()]).await {

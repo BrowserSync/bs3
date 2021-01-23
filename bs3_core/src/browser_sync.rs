@@ -42,7 +42,7 @@ impl BrowserSync {
             LocalUrl::try_from_port(Some(port)).expect("Should be able to update a port");
     }
     pub fn bind_address(&self) -> String {
-        let local_url = self.local_url.0.clone();
+        let local_url = self.local_url.inner.clone();
         format!(
             "{}:{}",
             local_url.host_str().expect("this part cannot can't fail"),

@@ -91,7 +91,7 @@ impl Handler<Start> for Server {
             let port_num = msg
                 .bs
                 .local_url
-                .0
+                .inner
                 .port()
                 .expect("port MUST be defined here");
             let (stop_sender, mut stop_recv) = tokio::sync::mpsc::channel::<()>(1);

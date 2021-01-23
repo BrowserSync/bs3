@@ -21,7 +21,7 @@ impl QueryRoot {
         let items = data.bs_instances.lock().unwrap();
         items
             .iter()
-            .filter(|bs| bs.local_url.0.port().expect("must have a port") == port)
+            .filter(|bs| bs.local_url.inner.port().expect("must have a port") == port)
             .cloned()
             .collect()
     }

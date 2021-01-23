@@ -12,7 +12,7 @@ type BrowserSync {
 	The local url/address that Browsersync will try to bind to when running the server
 	eg: http://0.0.0.0:8080
 	"""
-	localUrl: Url!
+	localUrl: LocalUrl!
 }
 """
 GQL types for [`Config`]
@@ -29,7 +29,9 @@ type ServeStaticConfig {
 	routes: [String!]!
 	dir: String!
 }
-scalar Url
+type LocalUrl {
+	inner: String!
+}
 type MutationRoot {
 	stop: MutationResult!
 }

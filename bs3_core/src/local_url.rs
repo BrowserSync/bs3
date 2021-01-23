@@ -1,9 +1,16 @@
-#[derive(Debug, Clone, PartialEq, serde::Serialize, async_graphql::NewType)]
-pub struct LocalUrl(#[serde(serialize_with = "crate::proxy::serialize_proxy")] pub url::Url);
+use async_graphql::*;
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, async_graphql::SimpleObject)]
+pub struct LocalUrl {
+    #[serde(serialize_with = "crate::proxy::serialize_proxy")]
+    pub inner: url::Url,
+}
 
 impl Default for LocalUrl {
     fn default() -> Self {
-        Self(url::Url::parse("http://0.0.0.0:8080").expect("valid input"))
+        Self {
+            inner: url::Url::parse("http://0.0.0.0:8080").expect("valid input"),
+        }
     }
 }
 
@@ -13,7 +20,7 @@ impl LocalUrl {
         if let Some(port) = port {
             log::trace!("setting port {}", port);
             local_url
-                .0
+                .inner
                 .set_port(Some(port))
                 .map_err(|_e| anyhow::anyhow!("Could not set the port!"))?;
             Ok(local_url)
@@ -30,7 +37,7 @@ impl<'de> serde::Deserialize<'de> for LocalUrl {
     {
         let s = String::deserialize(deserializer)?;
         let as_url = url::Url::parse(s.as_str()).map_err(serde::de::Error::custom)?;
-        Ok(LocalUrl(as_url))
+        Ok(LocalUrl { inner: as_url })
     }
 }
 
