@@ -40,7 +40,7 @@ where
     serializer.serialize_str(&as_string)
 }
 
-fn deserialize_json_string<'de, D>(deserializer: D) -> Result<url::Url, D::Error>
+pub fn deserialize_json_string<'de, D>(deserializer: D) -> Result<url::Url, D::Error>
 where
     D: de::Deserializer<'de>,
 {

@@ -1,10 +1,9 @@
 use crate::config::{default_port, get_available_port, Config};
 use crate::local_url::LocalUrl;
-use async_graphql::SimpleObject;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, SimpleObject)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BrowserSync {
     /// General configuration like which directories to serve,
     /// which proxies to setup etc
@@ -12,6 +11,23 @@ pub struct BrowserSync {
     /// The local url/address that Browsersync will try to bind to when running the server
     /// eg: http://0.0.0.0:8080
     pub local_url: LocalUrl,
+}
+
+///
+/// GQL types for [`BrowserSync`]
+///
+#[async_graphql::Object]
+impl BrowserSync {
+    /// General configuration like which directories to serve,
+    /// which proxies to setup etc
+    async fn config(&self) -> Config {
+        self.config.clone()
+    }
+    /// The local url/address that Browsersync will try to bind to when running the server
+    /// eg: http://0.0.0.0:8080
+    async fn local_url(&self) -> String {
+        self.local_url.inner.clone().into_string()
+    }
 }
 
 impl BrowserSync {
