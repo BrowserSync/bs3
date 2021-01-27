@@ -1,5 +1,3 @@
-use async_graphql::*;
-
 #[derive(
     Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, async_graphql::SimpleObject,
 )]

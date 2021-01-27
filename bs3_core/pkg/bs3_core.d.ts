@@ -1,8 +1,5 @@
 /* tslint:disable */
 /* eslint-disable */
-export type BrowserSyncOutputMsg = 
- | { kind: "Listening"; payload: { bind_address: string } };
-
 export type ServedFile = { path: string; web_path: string; referer: string | null };
 
 export type ClientMsg = 

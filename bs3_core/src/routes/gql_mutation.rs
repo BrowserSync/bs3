@@ -49,7 +49,7 @@ mod queries {
     }
 }
 
-fn stop_mutation() -> impl Serialize {
+pub fn stop_mutation() -> impl Serialize {
     use cynic::MutationBuilder;
     queries::Stop::build(())
 }

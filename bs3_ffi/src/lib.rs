@@ -14,10 +14,13 @@ async fn start<F: Fn(String)>(bs_json: String, cb: F) {
 #[node_bindgen]
 async fn stop<F: Fn(String)>(addr: String, cb: F) {
     match bs3_core::server::stop::stop(addr).await {
-        Ok(_) => { /* noop */ }
+        Ok(_) => {
+            /* noop */
+            println!("stopped in stop [rs]")
+        }
         Err(_e) => {
             eprintln!("error from sending the stop message")
         }
-    }
+    };
     cb(String::from("OK"));
 }
