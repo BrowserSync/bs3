@@ -61,7 +61,7 @@ impl RespModDataTrait for RespModData {
             .iter()
             .enumerate()
             .filter_map(|(index, item)| {
-                if item.guard(&req_head, &res_head) {
+                if item.guard(req_head, res_head) {
                     Some(index)
                 } else {
                     None
@@ -141,7 +141,7 @@ where
                     // eg: if 'indexes' is [0, 1] -> this means 2 transforms will be applied to this response
                     //
                     let indexes: Vec<usize> = transforms
-                        .map(|trans| trans.indexes(&head, &response.head()))
+                        .map(|trans| trans.indexes(head, response.head()))
                         .unwrap_or_else(Vec::new);
 
                     log::debug!("indexes to process = {:?}", indexes);

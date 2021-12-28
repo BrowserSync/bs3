@@ -5,18 +5,18 @@
   "main": "index.js",
   "scripts": {
     "test": "tsc --noEmit",
-    "build": "esbuild --bundle src/index.ts --outdir=dist --sourcemap",
+    "build": "esbuild --bundle src/index.ts --outdir=dist --sourcemap --target=es2021",
     "watch": "npm run build && onchange 'src/**/*.ts' -- npm run build"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "anymatch": "^3.1.1",
-    "esbuild": "^0.7.22",
+    "anymatch": "^3.1.2",
+    "esbuild": "^0.14.8",
     "onchange": "^7.1.0",
     "rxjs": "^6.6.3",
     "rxjs-compat": "^6.6.3",
-    "typescript": "4.0.5"
+    "typescript": "^4.5.4"
   }
 }

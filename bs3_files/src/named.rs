@@ -326,8 +326,8 @@ impl NamedFile {
         } else if let (Some(ref m), Some(header::IfUnmodifiedSince(ref since))) =
             (last_modified, req.get_header())
         {
-            let t1: SystemTime = m.clone().into();
-            let t2: SystemTime = since.clone().into();
+            let t1: SystemTime = (*m).into();
+            let t2: SystemTime = (*since).into();
 
             match (t1.duration_since(UNIX_EPOCH), t2.duration_since(UNIX_EPOCH)) {
                 (Ok(t1), Ok(t2)) => t1 > t2,
@@ -345,8 +345,8 @@ impl NamedFile {
         } else if let (Some(ref m), Some(header::IfModifiedSince(ref since))) =
             (last_modified, req.get_header())
         {
-            let t1: SystemTime = m.clone().into();
-            let t2: SystemTime = since.clone().into();
+            let t1: SystemTime = (*m).into();
+            let t2: SystemTime = (*since).into();
 
             match (t1.duration_since(UNIX_EPOCH), t2.duration_since(UNIX_EPOCH)) {
                 (Ok(t1), Ok(t2)) => t1 <= t2,

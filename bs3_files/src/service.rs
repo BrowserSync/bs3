@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::{
     fmt, io,
     path::PathBuf,
@@ -186,7 +187,7 @@ impl Service for FilesService {
     }
 }
 
-fn file_path(path: &str, dir: &PathBuf) -> Option<PathBuf> {
+fn file_path(path: &str, dir: &Path) -> Option<PathBuf> {
     if let Ok(real_path) = path.parse::<PathBufWrap>() {
         if let Ok(pb) = dir.join(&real_path).canonicalize() {
             return Some(pb);

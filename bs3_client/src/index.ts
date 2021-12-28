@@ -39,7 +39,7 @@ const actions = fsSub.pipe(switchMap((events): Observable<Effects> => {
 const sub = actions.subscribe((action) => {
     switch (action.kind) {
         case "Reload": {
-            window.location.reload(true)
+            window.location.reload()
         }
     }
 });

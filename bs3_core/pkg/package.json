@@ -5,9 +5,16 @@
   "files": [
     "bs3_core_bg.wasm",
     "bs3_core.js",
+    "bs3_core_bg.js",
     "bs3_core.d.ts"
   ],
   "module": "bs3_core.js",
   "types": "bs3_core.d.ts",
-  "sideEffects": false
+  "sideEffects": false,
+  "keywords": [
+    "actix",
+    "http",
+    "async",
+    "futures"
+  ]
 }

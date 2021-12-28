@@ -1,4 +1,4 @@
-use actix::{Actor, Addr, Context};
+use actix::Actor;
 use actix_web::{client::Client, web, App, HttpServer};
 use std::sync::Arc;
 
@@ -63,6 +63,7 @@ pub async fn main(
 
     let port = browser_sync.local_url.0.port();
     let bind_address = browser_sync.bind_address();
+    dbg!(&bind_address);
 
     let s = Server {
         ws_server: ws_server.clone(),
@@ -109,7 +110,7 @@ pub async fn main(
             .service(web::resource("/__bs3/ws/").to(ws_route))
             .service(Files::new(
                 "/__bs3/client",
-                "/Users/shakyshane/Sites/bs3/bs3_client/dist",
+                "/Users/shaneosbourne/WebstormProjects/bs3/bs3_client/dist",
             ));
 
         let index = browser_sync
@@ -133,7 +134,7 @@ pub async fn main(
                         ServeStaticConfig::Multi(multi) => {
                             for r in &multi.routes {
                                 acc.push(
-                                    Files::new(&r, multi.dir.clone())
+                                    Files::new(r, multi.dir.clone())
                                         .index_file(&index)
                                         .to_service(),
                                 );
@@ -163,11 +164,10 @@ pub async fn main(
         app
     });
 
-    actix_rt::spawn(async move {
-        delay_for(std::time::Duration::from_secs(2)).await;
-        let r = addr.send(ServerIncoming::Stop).await;
-        dbg!(r);
-    });
+    // actix_rt::spawn(async move {
+    //     delay_for(std::time::Duration::from_secs(2)).await;
+    //     let _r = addr.send(ServerIncoming::Stop).await;
+    // });
 
     actix_rt::spawn(async move {
         let binded = server.workers(1).bind(bind_address);
